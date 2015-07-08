@@ -1,0 +1,51 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="ToyMath">
+      <UniqueIdentifier>{63a26f5c-d92d-4a6c-8cbe-8098d417aa30}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ToyRender">
+      <UniqueIdentifier>{bc6b4f91-3564-4826-9661-e89017b17232}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\..\..\..\SilverX%27s Space\VS2013 Projects\ToyX\ToyX\ReadMe.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\..\SilverX%27s Space\VS2013 Projects\ToyX\ToyX\stdafx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\SilverX%27s Space\VS2013 Projects\ToyX\ToyX\targetver.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\SilverX%27s Space\VS2013 Projects\ToyX\ToyX\ToyRender.h">
+      <Filter>ToyRender</Filter>
+    </ClInclude>
+    <ClInclude Include="ToyMath.h">
+      <Filter>ToyMath</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\..\SilverX%27s Space\VS2013 Projects\ToyX\ToyX\stdafx.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\SilverX%27s Space\VS2013 Projects\ToyX\ToyX\ToyX.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\SilverX%27s Space\VS2013 Projects\ToyX\ToyX\ToyRender.cpp">
+      <Filter>ToyRender</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
