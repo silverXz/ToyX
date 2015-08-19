@@ -80,12 +80,7 @@ namespace toy
 				v[i] /= val;
 			return *this;
 		}
-
-		const Type& x() const { return v[0]; }
-		const Type& y() const { return v[1]; }
-
-		Type& x() { return v[0]; }
-		Type& y() { return v[1]; }
+		
 
 		template<class Type> friend Vector2<Type> operator + (const Vector2<Type>& r1, const Vector2<Type>& r2);
 		template<class Type> friend Vector2<Type> operator - (const Vector2<Type>& r1, const Vector2<Type>& r2);
@@ -95,7 +90,14 @@ namespace toy
 			
 
 	public:
-		Type v[2];
+		union {
+			struct {
+				Type x, y;
+			};
+			struct {
+				Type v[2];
+			};
+		};
 	};
 
 	template<class Type>
@@ -239,7 +241,8 @@ namespace toy
 		const Type& z(void) const { return v[2];}
 
 	public:
-		Type v[3];
+			Type v[3];
+		
 	};
 
 
@@ -422,36 +425,42 @@ namespace toy
 			return Vector3<Type>(v[0],v[1],v[2]);
 		}
 
-		Type x() const
-		{
-			return v[0];
-		}
-
-		Type y() const
-		{
-			return v[1];
-		}
-
-		Type z() const
-		{
-			return v[2];
-		}
-
-		Type w() const
-		{
-			return v[3];
-		}
-
-		void perspectiveDiv(void)
-		{
-			if (v[3] == (Type)0)
-				return;
-			for (int i = 0; i < 4; i++)
-				v[i] /= v[3];
-		}
+// 		Type x() const
+// 		{
+// 			return v[0];
+// 		}
+// 
+// 		Type y() const
+// 		{
+// 			return v[1];
+// 		}
+// 
+// 		Type z() const
+// 		{
+// 			return v[2];
+// 		}
+// 
+// 		Type w() const
+// 		{
+// 			return v[3];
+// 		}
 
 	public:
-		Type v[4];
+		union 
+		{
+			struct 
+			{
+				Type x, y, z, w;
+			};
+
+			struct 
+			{
+				Type v[4];
+			};
+			
+		};
+			
+
 	};
 
 	template<class Type> 
