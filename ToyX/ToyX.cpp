@@ -15,15 +15,15 @@
 
 #include "Shader.h"
 
-#define SSE_ALIGN __declspec(align(16))
+
 
 #include "ToyRender.h"
 
 
 using namespace toy;
 
-#define WINDOW_WIDTH 800
-#define WINDOW_HEIGHT 600
+#define WINDOW_WIDTH 1280
+#define WINDOW_HEIGHT 800
 
 inline uint32_t ToRGB(int r, int g, int b)
 {
@@ -142,29 +142,62 @@ int _tmain(int argc, _TCHAR* argv[])
 	toyRender.SetRenderTarget(cb, zb);
 
 
+	auto past = 0.0;
+
+	auto last = iv::Clock::GetCurrentTimeMS();
+
+	auto nFrame = 0;
+
+	toyRender.SetMatrix(TOY_MATRIX_VIEW, lookAt(vec3(4.0f, 4.0f, 4.0f), vec3(0.0f), vec3(0.0f, 1.0f, 0.0f)));
+	toyRender.SetMatrix(TOY_MATRIX_PROJECTION, perspective(90.0f, (float)WINDOW_WIDTH / WINDOW_HEIGHT, 0.1f, 100.0f));
+	toyRender.SetViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+	toyRender.SetVertexShader(CubeVS);
+	toyRender.SetFragmentShader(CubeFS);
+	toyRender.LoadCube();
+
+	auto rotAngle = 0.0f;
+	const auto rotSpeed = toy::PI / 20.0f;
+
 	while (g_Running)
 	{
 		SDL_Event event;
 		while (SDL_PollEvent(&event))
 			HandleEvent(event);
 
+		double curTime = iv::Clock::GetCurrentTimeMS();
+		
+		past += curTime - last;
+
+		rotAngle += rotSpeed * (curTime - last) * 0.001f;
+		if (rotAngle > toy::TWOPI)
+			rotAngle -= toy::TWOPI;
+		toyRender.SetMatrix(TOY_MATRIX_MODEL, toy::rotate(rotAngle, toy::vec3(0.0f, 1.0f, 0.0f)));
+
+		last = curTime;
+
+		if (past >= 1000.0)
+		{
+			std::cout << "FPS:" << nFrame << std::endl;
+			nFrame = 0;
+			past = 0.0;
+		}
+		else
+			++nFrame;
+
 		toyRender.Begin();
 
-		toyRender.SetViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+
 		toyRender.ClearColorBuffer(ToyColor(0.0f,0.0f,0.0f));
 		toyRender.ClearDepthBuffer();
-
-		toyRender.SetMatrix(TOY_MATRIX_VIEW, lookAt(vec3(0.0f, 0.0f, 2.0f), vec3(0.0f), vec3(0.0f, 1.0f, 0.0f)));
-		toyRender.SetMatrix(TOY_MATRIX_PROJECTION, perspective(90.0f, (float)WINDOW_WIDTH / WINDOW_HEIGHT, 0.1f, 100.0f));
-
-		toyRender.SetVertexShader(CubeVS);
-		toyRender.LoadCube();
 
 		toyRender.DrawMesh();
 		
 		toyRender.End();
 
 		SDL_UpdateWindowSurface(g_Window);
+
+
+
 	}
 
 	SDL_Quit();

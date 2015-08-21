@@ -48,6 +48,9 @@
     <ClInclude Include="Shader.h">
       <Filter>ToyRender</Filter>
     </ClInclude>
+    <ClInclude Include="SSE_Math.h">
+      <Filter>ToyMath</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -61,6 +64,9 @@
     </ClCompile>
     <ClCompile Include="Shader.cpp">
       <Filter>ToyRender</Filter>
+    </ClCompile>
+    <ClCompile Include="SSE_Math.cpp">
+      <Filter>ToyMath</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

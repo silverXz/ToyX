@@ -13,3 +13,11 @@ void CubeVS(VS_PARAM* vparm)
 	v_out->varyings[1] = v_in->c.y;
 	v_out->varyings[2] = v_in->c.z;
 }
+
+void CubeFS(PS_PARAM* pparm)
+{
+	SSE_Color3 &out = pparm->Output;
+	out.r = pparm->Varyings[0];
+	out.g = pparm->Varyings[1];
+	out.b = pparm->Varyings[2];
+}

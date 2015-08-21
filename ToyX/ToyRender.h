@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <SDL/SDL.h>
 #include <vector>
+#include <fstream>
 #include "ToyMath.h"
 #include "Shader.h"
 
@@ -23,16 +24,17 @@ public:
 		mColor = ((a << 24) | (r << 16) | (g << 8) | b);
 	}
 
-	explicit ToyColor(float r, float g, float b, float a = 1.0f)
+	inline explicit ToyColor(float r, float g, float b, float a = 1.0f)
 	{
+		const uint32_t mask = ~0xFF;
 		uint32_t red = (uint32_t)(255.0f * r);
-		red = (red > 255) ? 255 : red;
+		red = (red & mask) ? 255 : red;
 		uint32_t green = (uint32_t)(255.0f * g);
-		green = (green > 255) ? 255 : green;
+		green = (green & mask) ? 255 : green;
 		uint32_t blue = (uint32_t)(255.0f * b);
-		blue = (blue > 255) ? 255 : blue;
+		blue = (blue & mask) ? 255 : blue;
 		uint32_t alpha = (uint32_t)(255.0f * a);
-		alpha = (alpha > 255) ? 255 : alpha;
+		alpha = (alpha & mask) ? 255 : alpha;
 		mColor = ((alpha << 24) | (red << 16) | (green << 8) | blue);
 	}
 
@@ -75,6 +77,12 @@ struct VertexCache
 	Toy_TransformedVertex	*v;
 
 	VertexCache() : tag(UINT_MAX), v(nullptr) {}
+
+	inline void Clear()
+	{
+		tag = UINT_MAX;
+		v = nullptr;
+	}
 };
 
 struct Toy_VertexBuffer
@@ -105,6 +113,8 @@ struct Toy_TransformedFace
 
 	float v0x, v0y;
 	float v0w;
+
+	float v0v[VARYINGS_NUM];
 
 	toy::vec2 dw;
 	toy::vec2 dv[VARYINGS_NUM];
@@ -174,7 +184,13 @@ public:
 
 	void Draw3DLines(const toy::vec4& p1, const toy::vec4 p2, const ToyColor &color);
 
-	void SetPixelColor(int x, int y, const ToyColor& color);
+	inline void SetPixelColor(int x, int y, uint32_t c)
+	{
+		assert(x >= 0 && y >= 0);
+		if (x >= mRT.back_buffer->w || y >= mRT.back_buffer->h)
+			return;
+		((uint32_t*)mRT.back_buffer->pixels)[y * mRT.back_buffer->w + x] = c;
+	}
 
 
 	void SetVertexShader(VertexShader vs);
@@ -202,6 +218,7 @@ private:
 	void ProcessP();
 
 	void RasterizeTriangle(Toy_TransformedFace* f);
+	void RasterizeTriangle_SMID(Toy_TransformedFace *f);
 
 	inline int iRound(float f)
 	{
@@ -217,6 +234,7 @@ private:
 	void DrawHorizontal2DLine(int x1, int x2, int y, const ToyColor& color);
 	void DrawVertical2DLine(int y1, int y2, int x, const ToyColor& color);
 
+	void ClearCache();
 
 	void ComputeGradient(float C, float di21, float di31, float dx21, float dy21, float dx31, float dy31, toy::vec2 *g);
 
@@ -231,6 +249,8 @@ private:
 	std::vector<Toy_TransformedFace>	faceBuffer;
 
 	Toy_VertexBuffer	tvb;
+
+	std::ofstream		dFile;
 
 	RenderTarget		mRT;
 
