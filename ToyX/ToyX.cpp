@@ -4,7 +4,7 @@
 #include "stdafx.h"
 
 
-#include <SDL/SDL.h>
+#include <SDL2/SDL.h>
 #include <memory.h>
 #include <stdint.h>
 #include <windows.h>
@@ -22,8 +22,8 @@
 
 using namespace toy;
 
-#define WINDOW_WIDTH 1280
-#define WINDOW_HEIGHT 800
+#define WINDOW_WIDTH 800
+#define WINDOW_HEIGHT 600
 
 inline uint32_t ToRGB(int r, int g, int b)
 {

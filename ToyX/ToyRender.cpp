@@ -98,17 +98,6 @@ void ToyRender::Draw2DLines(int x1, int y1, int x2, int y2, const ToyColor &colo
 	}
 }
 
-void ToyRender::DrawHorizontal2DLine(int x1, int x2, int y, const ToyColor& color)
-{
-	for (int i = x1; i <= x2; ++i)
-		SetPixelColor(i, y, color.ToUInt32());
-}
-
-void ToyRender::DrawVertical2DLine(int y1, int y2, int x, const ToyColor& color)
-{
-	for (int i = y1; i <= y2; ++i)
-		SetPixelColor(x, i, color.ToUInt32());
-}
 void ToyRender::Draw3DLines(const toy::vec4& p1, const toy::vec4 p2, const ToyColor &color)
 {
 	vec4 clip1 = mRC.globals.mvp * p1;
@@ -155,13 +144,6 @@ void ToyRender::Draw3DSolidTriangle(const toy::vec4& p1, const toy::vec4& p2, co
 	clip3.y = mRT.back_buffer->h - (clip3.y + 1.0f) * half_height;	
 }
 
-bool ToyRender::EdgeFunc(int a, int b, int c, int x, int y)
-{
-	if (a * x + b * y + c >= 0)
-		return true;
-	else
-		return false;
-}
 void ToyRender::LoadCube()
 {
 	const float len = 2.0f;
@@ -244,46 +226,224 @@ void ToyRender::UploadData(GeometryDataType gdt, void *ptr, uint32_t size)
 	}
 }
 
+void ToyRender::TransformVertex(uint32_t in, Toy_TransformedVertex *out)
+{
+	uint32_t cacheID = in&(CACHE_SIZE - 1);
+	if (vCache[cacheID].tag == in)
+	{
+		*out = *(vCache[cacheID].v);
+	}
+	else
+	{
+		VS_PARAM vs_param;
+		vs_param.v_in = &vBuffer.vBuffer[in];
+		vs_param.v_out = &tvBuffer[in];
+		vs_param.uniforms = &mRC.globals;
+		mRC.vs(&vs_param);
+		vCache[cacheID].tag = in;
+		vCache[cacheID].v = vs_param.v_out;
+		*out = *(vCache[cacheID].v);
+	}
+}
 
 void ToyRender::ProcessV()
 {
 	faceBuffer.clear();
 	ClearCache();
-	for (int i = 0; i < iBuffer.size / 3; ++i)
+
+	for (int i = 0; i < iBuffer.size; i += 3)
 	{
-		Toy_TransformedFace face;
-		for (int j = 0; j < 3 ; ++j)
+		// For every face, get transformed vertex. 
+		// Clipping may happen that new vertex is introduced.
+		// The maximum vertex number clipping may produces is 
+		Toy_TransformedVertex v[CLIP_VERTEX_MAX];
+		for (int j = 0; j < 3; ++j)
 		{
-			int k = 3 * i + j;
-			int vid = iBuffer.iBuffer[k];
-			// Found Vertex In Cache!
-			if (vCache[vid &(CACHE_SIZE - 1)].tag == vid)
+			TransformVertex(iBuffer.iBuffer[i + j], &v[j]);
+			PostProcessV(&v[j]);
+		}
+		InsertTransformedFace(&v[0], &v[1], &v[2]);
+	}
+}
+
+void ToyRender::ProcessV_WithClip()
+{
+	faceBuffer.clear();
+	ClearCache();
+
+	for (int i = 0; i < iBuffer.size; i += 3)
+	{
+		// For every face, get transformed vertex. 
+		// Clipping may happen that new vertex is introduced.
+		// The maximum vertex number clipping may produces is 
+		Toy_TransformedVertex v[CLIP_VERTEX_MAX];
+		for (int j = 0; j < 3; ++j)
+			TransformVertex(iBuffer.iBuffer[i + j], &v[j]);
+		ClipTriangle(&v[0], &v[1], &v[2]);
+	}
+}
+
+void ToyRender::ClipTriangle(Toy_TransformedVertex *v1, Toy_TransformedVertex *v2, Toy_TransformedVertex *v3)
+{
+	int mask = 0; 
+	mask |= CalcClipMask(v1);
+	mask |= CalcClipMask(v2);
+	mask |= CalcClipMask(v3);
+
+	// No clipping happens,totally inside!
+	if (mask == 0x0)
+	{
+		PostProcessV(v1);
+		PostProcessV(v2);
+		PostProcessV(v3);
+		InsertTransformedFace(v1, v2, v3);
+		return;
+	}
+
+	// Clipping happens! Do the clip work!
+	Toy_Plane p[6] = {
+		{-1.0f,0.0f,0.0f,1.0f}, // POS_X_PLANE ( pointing at -x )
+		{1.0f,0.0f,0.0f,1.0f},	// NEG_X_PLANE ( pointing at +x )
+		{0.0f,-1.0f,0.0f,1.0f},	// POS_Y_PLANE ( pointing at -y )
+		{0.0f,1.0f,0.0f,1.0},	// NEG_Y_PLANE ( pointing at +y )
+		{0.0f,0.0f,-1.0f,1.0f},	// POS_Z_PLANE ( pointing at -z )
+		{0.0f,0.0f,1.0f,0.0f}	// NEG_Z_PLANE ( pointing at +z )
+	};
+
+	ClipMask mk[6] = {
+		CLIP_POS_X,
+		CLIP_NEG_X,
+		CLIP_POS_Y,
+		CLIP_NEG_Y,
+		CLIP_POS_Z,
+		CLIP_NEG_Z
+	};
+
+	// We need 2 index array ( with size CLIP_VERTEX_MAX ) to do ping pong buffering.
+	Toy_TransformedVertex *v = v1;
+	uint32_t inout[2][CLIP_VERTEX_MAX];
+	uint32_t *in = inout[0], *out = inout[1];
+	in[0] = 0;	in[1] = 1; in[2] = 2;
+
+	int vCnt = 3;
+	int inCnt = 3;
+	int outCnt = 0;
+
+	// Several lambda expression to help!
+
+	// Calculate the signed distance between a vertex and a plane.
+	auto calcPointPlaneDistance = [](const Toy_Plane *p, const Toy_TransformedVertex *v) { 	return p->x * v->p.x + p->y * v->p.y + p->z * v->p.z + p->d;};
+
+	// Determine whether two floats has different signs.
+	auto hasDifferentSigns = [](float a, float b) { return (a >= 0.0f && b < 0.0f) || (a < 0.0f && b >= 0.0f);	};
+
+	// Interpolate Vertex Attributes
+	auto interpolateV = [](const Toy_TransformedVertex *v1, const Toy_TransformedVertex *v2, float t, Toy_TransformedVertex *out) {
+		out->p = v1->p + (v2->p - v1->p) * t;
+		for (int i = 0; i < VARYINGS_NUM; ++i)
+			out->varyings[i] = v1->varyings[i] + (v2->varyings[i] - v1->varyings[i]) * t;
+	};
+
+	// For every clip plane, find the clipped vertices and put their index in "out" array.
+	for (int i = 0; i < 6; ++i)
+	{
+		// There is at least one vertex clipped by plane mk[i]
+		if (mask & mk[i])
+		{
+			int id1 = in[inCnt] = in[0];
+			float d1 = calcPointPlaneDistance(&p[i],&v[id1]);
+			
+			for (int j = 1; j <= inCnt; ++j)
 			{
-				face.v[j] = &tvBuffer[vid];
-			}
-			else
-			{
-				VS_PARAM vs_param;
-				vs_param.v_in = &vBuffer.vBuffer[vid];
-				vs_param.v_out = &tvBuffer[vid];
-				vs_param.uniforms = &mRC.globals;
-				mRC.vs(&vs_param);
-				PostProcessV(vs_param.v_out);
-				vCache[vid&(CACHE_SIZE - 1)].v = vs_param.v_out;
-				vCache[vid&(CACHE_SIZE - 1)].tag = vid;
-				face.v[j] = vs_param.v_out;
+				int id2 = in[j];
+				float d2 = calcPointPlaneDistance(&p[i],&v[id2]);
+
+				// The first vertex of this edge is inside p[i].We should add its indice to "out" array!
+				if (d1 >= 0) 
+					out[outCnt++] = d1;
+				
+				// Next, we have to find whether this edge is cut by p[i].
+				// If yes, interpolate the cut vertex and add its indice to "out" array!
+				// If no, continue.
+				if (hasDifferentSigns(d1, d2))
+				{
+					float t = d1 / (d1 - d2);
+					interpolateV(&v[id1], &v[id2], t, &v[vCnt]);
+					out[outCnt++] = vCnt++;
+				}
+
+				id1 = id2;
+				d1 = d2;
 			}
 		}
-		faceBuffer.push_back(face);
+		
+		std::swap(in, out);
+
+		inCnt = outCnt;
+		outCnt = 0;
 	}
+
+	for (int i = 0; i < inCnt; ++i)
+		PostProcessV(&v[in[i]]);
+
+	for (int i = 1; i < inCnt - 1; ++i)
+		InsertTransformedFace(&v[in[0]], &v[in[i]], &v[in[i + 1]]);
+}
+
+void ToyRender::InsertTransformedFace(Toy_TransformedVertex *v1, Toy_TransformedVertex *v2, Toy_TransformedVertex *v3)
+{
+	Toy_TransformedFace f;
+	
+	f.v0x = v1->p.x;
+	f.v0y = v1->p.y;
+	f.v0w = v1->p.w;
+
+	for (int i = 0; i < VARYINGS_NUM; ++i)
+		f.v0v[i] = v1->varyings[i];
+	
+	f.fp1[0] = iRound(v1->p.x * 16.0f);
+	f.fp1[1] = iRound(v1->p.y * 16.0f);
+	f.fp2[0] = iRound(v2->p.x * 16.0f);
+	f.fp2[1] = iRound(v2->p.y * 16.0f);
+	f.fp3[0] = iRound(v3->p.x * 16.0f);
+	f.fp3[1] = iRound(v3->p.y * 16.0f);
+
+	float fdx21 = v2->p.x - v1->p.x;
+	float fdx31 = v3->p.x - v1->p.x;
+	float fdy21 = v2->p.y - v1->p.y;
+	float fdy31 = v3->p.y - v1->p.y;
+
+	float fdw21 = v2->p.w - v1->p.w;
+	float fdw31 = v3->p.w - v1->p.w;
+
+	float CS = fdx21 * fdy31 - fdx31 * fdy21;
+	ComputeGradient(CS, v2->p.w - v1->p.w, v3->p.w - v1->p.w, fdx21, fdy21, fdx31, fdy31, &f.dw);
+
+	for (int i = 0; i < VARYINGS_NUM; ++i)
+	{
+		ComputeGradient(CS, v2->varyings[i] - v1->varyings[i], v3->varyings[i] - v1->varyings[i], fdx21, fdy21, fdx31, fdy31, &f.dv[i]);
+	}
+
+	faceBuffer.push_back(f);
+}
+
+int ToyRender::CalcClipMask(Toy_TransformedVertex *v)
+{
+	int mask = 0;
+	if (v->p.x - v->p.w > 0) mask |= CLIP_POS_X;
+	if (v->p.x + v->p.w < 0) mask |= CLIP_NEG_X;
+	if (v->p.y - v->p.w > 0) mask |= CLIP_POS_Y;
+	if (v->p.y + v->p.w < 0) mask |= CLIP_NEG_Y;
+	if (v->p.z - v->p.w > 0) mask |= CLIP_POS_Z;
+	if (v->p.z + v->p.w < 0) mask |= CLIP_NEG_Z;
+	return mask;
 }
 
 void ToyRender::ProcessR()
 {
 	for (int i = 0; i < faceBuffer.size(); ++i)
 	{
-		//RasterizeTriangle(&faceBuffer[i]);
-		RasterizeTriangle_SMID(&faceBuffer[i]);
+		RasterizeTriangle_SIMD(&faceBuffer[i]);
 	}
 }
 
@@ -304,209 +464,10 @@ void ToyRender::PostProcessV(Toy_TransformedVertex *v)
 	}
 }
 
-void ToyRender::RasterizeTriangle(Toy_TransformedFace* f)
-{
-	Toy_TransformedVertex *v0 = f->v[0];
-	Toy_TransformedVertex *v1 = f->v[1];
-	Toy_TransformedVertex *v2 = f->v[2];
-
-	// Fixed Point Coordinates.
-	f->fp1[0] = iRound(v0->p.x * 16.0f);
-	f->fp1[1] = iRound(v0->p.y * 16.0f);
-	f->fp2[0] = iRound(v1->p.x * 16.0f);
-	f->fp2[1] = iRound(v1->p.y * 16.0f);
-	f->fp3[0] = iRound(v2->p.x * 16.0f);
-	f->fp3[1] = iRound(v2->p.y * 16.0f);
-
-	int DX21 = f->fp2[0] - f->fp1[0];
-	int DY21 = f->fp2[1] - f->fp1[1];
-	int DX32 = f->fp3[0] - f->fp2[0];
-	int DY32 = f->fp3[1] - f->fp2[1];
-	int DX13 = f->fp1[0] - f->fp3[0];
-	int DY13 = f->fp1[1] - f->fp3[1];
-
-	int faceOrient = DX13*DY21 - DX21*DY13;
-
-	if (faceOrient > 0)
-		return;
-
-	// compute gradient
-	f->v0x = v0->p.x;
-	f->v0y = v0->p.y;
-	f->v0w = v0->p.w;
-
-	float fdx21 = v1->p.x - v0->p.x;
-	float fdx31 = v2->p.x - v0->p.x;
-	float fdy21 = v1->p.y - v0->p.y;
-	float fdy31 = v2->p.y - v0->p.y;
-
-	float fdw21 = v1->p.w - v0->p.w;
-	float fdw31 = v2->p.w - v0->p.w;
-
-	float CS = fdx21 * fdy31 - fdx31 * fdy21;
-	ComputeGradient(CS, v1->p.w - v0->p.w, v2->p.w - v0->p.w, fdx21, fdy21, fdx31, fdy31, &f->dw);
-
-	for (int i = 0; i < VARYINGS_NUM; ++i)
-	{
-		ComputeGradient(CS, v1->varyings[i] - v0->varyings[i], v2->varyings[i] - v0->varyings[i], fdx21, fdy21, fdx31, fdy31, &f->dv[i]);
-	}
-
-
-	int C1 = -DY21 * f->fp1[0] + DX21 * f->fp1[1];
-	int C2 = -DY32 * f->fp2[0] + DX32 * f->fp2[1];
-	int C3 = -DY13 * f->fp3[0] + DX13 * f->fp3[1];
-
-	if (DY21 > 0 || (DY21 == 0 && DX21 > 0))
-		++C1;
-	if (DY32 > 0 || (DY32 == 0 && DX32 > 0))
-		++C2;
-	if (DY13 > 0 || (DY13 == 0 && DX13 > 0))
-		++C3;
-
-	const int DDX21 = DX21 << 4;
-	const int DDX32 = DX32 << 4;
-	const int DDX13 = DX13 << 4;
-	const int DDY21 = DY21 << 4;
-	const int DDY32 = DY32 << 4;
-	const int DDY13 = DY13 << 4;
-
-	const int blockSize = 8;
-
-	int xmin = std::min(std::min(f->fp1[0], f->fp2[0]), f->fp3[0]);
-	int xmax = std::max(std::max(f->fp1[0], f->fp2[0]), f->fp3[0]);
-	int ymin = std::min(std::min(f->fp1[1], f->fp2[1]), f->fp3[1]);
-	int ymax = std::max(std::max(f->fp1[1], f->fp2[1]), f->fp3[1]);
-
-	int cxMin = (xmin + 0xF) >> 4;
-	cxMin &= ~(blockSize - 1);
-	int cxMax = (xmax + 0xF) >> 4;
-	cxMax = (cxMax + blockSize) & (~(blockSize - 1));
-	int cyMin = (ymin + 0xF) >> 4;
-	cyMin &= ~(blockSize - 1);
-	int cyMax = (ymax + 0xF) >> 4;
-	cyMax = (cyMax + blockSize) & (~(blockSize - 1));
-
-	int E1 = DY21 * (cxMin << 4) - DX21 * (cyMin << 4) + C1;
-	int E2 = DY32 * (cxMin << 4) - DX32 * (cyMin << 4) + C2;
-	int E3 = DY13 * (cxMin << 4) - DX13 * (cyMin << 4) + C3;
-
-	for (int y = cyMin; y <= cyMax; y += blockSize)
-	{
-		for (int x = cxMin; x <= cxMax; x += blockSize)
-		{
-			// Test Block Corners!
-			int x0 = x << 4;
-			int x1 = (x + blockSize - 1) << 4;
-			int y0 = y << 4;
-			int y1 = (y + blockSize - 1) << 4;
-
-			// Test Against Egde 1:
-			bool e00 = (C1 + DY21 * x0 - DX21 * y0) > 0;
-			bool e01 = (C1 + DY21 * x0 - DX21 * y1) > 0;
-			bool e02 = (C1 + DY21 * x1 - DX21 * y0) > 0;
-			bool e03 = (C1 + DY21 * x1 - DX21 * y1) > 0;
-
-			int a1 = (e00 << 0) | (e01 << 1) | (e02 << 2) | (e03 << 3);
-
-			// Test Against Edge 2:
-			bool e10 = (C2 + DY32 * x0 - DX32 * y0) > 0;
-			bool e11 = (C2 + DY32 * x0 - DX32 * y1) > 0;
-			bool e12 = (C2 + DY32 * x1 - DX32 * y0) > 0;
-			bool e13 = (C2 + DY32 * x1 - DX32 * y1) > 0;
-
-			int a2 = (e10 << 0) | (e11 << 1) | (e12 << 2) | (e13 << 3);
-
-			// Test Against Edge 3:
-			bool e20 = (C3 + DY13 * x0 - DX13 * y0) > 0;
-			bool e21 = (C3 + DY13 * x0 - DX13 * y1) > 0;
-			bool e22 = (C3 + DY13 * x1 - DX13 * y0) > 0;
-			bool e23 = (C3 + DY13 * x1 - DX13 * y1) > 0;
-
-			int a3 = (e20 << 0) | (e21 << 1) | (e22 << 2) | (e23 << 3);
-
-			// Complete Outside Triangle!
-			if (a1 == 0 || a2 == 0 || a3 == 0)
-				continue;
-
-			int xe1 = DY21 * x0 - DX21 * y0 + C1;
-			int xe2 = DY32 * x0 - DX32 * y0 + C2;
-			int xe3 = DY13 * x0 - DX13 * y0 + C3;
-
-			for (int i = y; i < y + blockSize; ++i)
-			{
-				int e1 = xe1, e2 = xe2, e3 = xe3;
-				for (int j = x; j < x + blockSize; ++j)
-				{
-					if (e1 > 0 && e2 > 0 && e3 > 0)
-					{
-						float xStep = j - f->v0x;
-						float yStep = i - f->v0y;
-						float cw = f->v0w + xStep * f->dw.x + yStep * f->dw.y;
-
-						if (cw >= ((float*)mRT.z_buffer->pixels)[i * mRT.z_buffer->w + j])
-						{
-							float rcw = 1.0f / cw;
-							float cx = f->v[0]->varyings[0] + xStep * f->dv[0].x + yStep * f->dv[0].y;
-							cx *= rcw;
-							float cy = f->v[0]->varyings[1] + xStep * f->dv[1].x + yStep * f->dv[1].y;
-							cy *= rcw;
-							float cz = f->v[0]->varyings[2] + xStep * f->dv[2].x + yStep * f->dv[2].y;
-							cz *= rcw;
-							ToyColor c(cx, cy, cz);
-							SetPixelColor(j, i, c.ToUInt32());
-							((float*)mRT.z_buffer->pixels)[i * mRT.z_buffer->w + j] = cw;
-						}
-					}
-					e1 += DDY21;
-					e2 += DDY32;
-					e3 += DDY13;
-				}
-				xe1 -= DDX21;
-				xe2 -= DDX32;
-				xe3 -= DDX13;
-			}
-		}
-	}
-}
-
-// 	for (int y = cyMin; y <= cyMax; ++y)
-// 	{
-// 		int e1 = E1, e2 = E2, e3 = E3;
-// 		for (int x = cxMin; x <= cxMax; ++x)
-// 		{
-// 			if (e1 > 0 && e2 > 0 && e3 > 0)
-// 			{
-// 				float xStep = x - f->v0x;
-// 				float yStep = y - f->v0y;
-// 				float cw = f->v0w + xStep * f->dw.x + yStep * f->dw.y;	
-// 
-// 				if (cw >= ((float*)mRT.z_buffer->pixels)[y * mRT.z_buffer->w + x])
-// 				{
-// 					float rcw = 1.0f / cw;
-// 					float cx = f->v[0]->varyings[0] + xStep * f->dv[0].x + yStep * f->dv[0].y;
-// 					cx *= rcw;
-// 					float cy = f->v[0]->varyings[1] + xStep * f->dv[1].x + yStep * f->dv[1].y;
-// 					cy *= rcw;
-// 					float cz = f->v[0]->varyings[2] + xStep * f->dv[2].x + yStep * f->dv[2].y;
-// 					cz *= rcw;
-// 					ToyColor c(cx, cy, cz);
-// 					SetPixelColor(x, y, c.ToUInt32());
-// 					((float*)mRT.z_buffer->pixels)[y * mRT.z_buffer->w + x] = cw;
-// 				}
-// 			}
-// 			e1 += DDY21;
-// 			e2 += DDY32;
-// 			e3 += DDY13;
-// 		}
-// 		E1 -= DDX21;
-// 		E2 -= DDX32;
-// 		E3 -= DDX13;
-// 	}
-//}
-
 void ToyRender::DrawMesh()
 {
 	ProcessV();
+	
 	ProcessR();
 }
 
@@ -538,20 +499,9 @@ void ToyRender::ClearCache()
 	}
 }
 
-void ToyRender::RasterizeTriangle_SMID(Toy_TransformedFace *f)
+
+void ToyRender::RasterizeTriangle_SIMD(Toy_TransformedFace *f)
 {
-	Toy_TransformedVertex *v0 = f->v[0];
-	Toy_TransformedVertex *v1 = f->v[1];
-	Toy_TransformedVertex *v2 = f->v[2];
-
-	// Fixed Point Coordinates.
-	f->fp1[0] = iRound(v0->p.x * 16.0f);
-	f->fp1[1] = iRound(v0->p.y * 16.0f);
-	f->fp2[0] = iRound(v1->p.x * 16.0f);
-	f->fp2[1] = iRound(v1->p.y * 16.0f);
-	f->fp3[0] = iRound(v2->p.x * 16.0f);
-	f->fp3[1] = iRound(v2->p.y * 16.0f);
-
 	int DX21 = f->fp2[0] - f->fp1[0];
 	int DY21 = f->fp2[1] - f->fp1[1];
 	int DX32 = f->fp3[0] - f->fp2[0];
@@ -563,30 +513,6 @@ void ToyRender::RasterizeTriangle_SMID(Toy_TransformedFace *f)
 
 	if (faceOrient > 0)
 		return;
-
-	// compute gradient
-	f->v0x = v0->p.x;
-	f->v0y = v0->p.y;
-	f->v0w = v0->p.w;
-
-	for (int i = 0; i < VARYINGS_NUM; ++i)
-		f->v0v[i] = f->v[0]->varyings[i];
-
-	float fdx21 = v1->p.x - v0->p.x;
-	float fdx31 = v2->p.x - v0->p.x;
-	float fdy21 = v1->p.y - v0->p.y;
-	float fdy31 = v2->p.y - v0->p.y;
-
-	float fdw21 = v1->p.w - v0->p.w;
-	float fdw31 = v2->p.w - v0->p.w;
-
-	float CS = fdx21 * fdy31 - fdx31 * fdy21;
-	ComputeGradient(CS, v1->p.w - v0->p.w, v2->p.w - v0->p.w, fdx21, fdy21, fdx31, fdy31, &f->dw);
-
-	for (int i = 0; i < VARYINGS_NUM; ++i)
-	{
-		ComputeGradient(CS, v1->varyings[i] - v0->varyings[i], v2->varyings[i] - v0->varyings[i], fdx21, fdy21, fdx31, fdy31, &f->dv[i]);
-	}
 
 
 	int C1 = -DY21 * f->fp1[0] + DX21 * f->fp1[1];
@@ -627,9 +553,9 @@ void ToyRender::RasterizeTriangle_SMID(Toy_TransformedFace *f)
 	int E2 = DY32 * (cxMin << 4) - DX32 * (cyMin << 4) + C2;
 	int E3 = DY13 * (cxMin << 4) - DX13 * (cyMin << 4) + C3;
 
-	for (int y = cyMin; y <= cyMax; y += blockSize)
+	for (int y = cyMin; y < cyMax; y += blockSize)
 	{
-		for (int x = cxMin; x <= cxMax; x += blockSize)
+		for (int x = cxMin; x < cxMax; x += blockSize)
 		{
 			// Test Block Corners!
 			int x0 = x << 4;
@@ -673,19 +599,17 @@ void ToyRender::RasterizeTriangle_SMID(Toy_TransformedFace *f)
 				__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
 				__m128 C1 = _mm_set_ps1(4.0f);
 				__m128 fMax = _mm_set_ps1(255.0f);
-				__m128i mask_mask = _mm_set_epi32(8, 4, 2, 1);
-				__m128 dbquad, InvW;
-				__m128i oquad, nquad, cbmask, dbmask;
+				//__m128i mask_mask = _mm_set_epi32(8, 4, 2, 1);
 
 				float *depthBuffer = mRT.z_buffer ? (float*)mRT.z_buffer->pixels + y * mRT.z_buffer->w + x : nullptr;
-				uint32_t *colorBuffer = (uint32_t *)mRT.back_buffer->pixels + y * mRT.back_buffer->w + x;
+				uint32_t *colorBuffer = (uint32_t*)mRT.back_buffer->pixels + y * mRT.back_buffer->w + x;
 
 				float dxStart = x - f->v0x;
 				float dyStart = y - f->v0y;
 
 				__m128 dx = _mm_set1_ps(f->dw.x);
 				__m128 base = _mm_set1_ps(f->v0w + f->dw.x * dxStart + f->dw.y * dyStart);
-				
+
 				WDY = _mm_set1_ps(f->dw.y);
 				W0 = _mm_add_ps(base, _mm_mul_ps(dx, C0));
 				W1 = _mm_add_ps(W0, _mm_mul_ps(dx, C1));
@@ -709,10 +633,11 @@ void ToyRender::RasterizeTriangle_SMID(Toy_TransformedFace *f)
 					uint32_t *cbTileLine;
 					float *dbTileLine = nullptr;
 
-					dbTileLine = &depthBuffer[x];
+					dbTileLine = depthBuffer;
 					dbquad = _mm_loadu_ps(dbTileLine);
 
-					cbTileLine = &colorBuffer[x];
+					cbTileLine = colorBuffer;
+
 					oquad = _mm_loadu_si128((__m128i*)cbTileLine);
 
 					dbmask = *(__m128i*)&_mm_cmpge_ps(W0, dbquad);
@@ -723,16 +648,16 @@ void ToyRender::RasterizeTriangle_SMID(Toy_TransformedFace *f)
 						__m128 w = _mm_rcp_ps(W0);
 						for (int f = 0; f < VARYINGS_NUM; f += 2)
 						{
-							parm.Varyings[f+0] = _mm_mul_ps(w, V0[f + 0]);
-							parm.Varyings[f+1] = _mm_mul_ps(w, V0[f + 1]);
+							parm.Varyings[f + 0] = _mm_mul_ps(w, V0[f + 0]);
+							parm.Varyings[f + 1] = _mm_mul_ps(w, V0[f + 1]);
 						}
 						mRC.fs(&parm);
 
 						SSE_Vec3 &out = parm.Output;
-						
-						out.r = _mm_min_ps(_mm_mul_ps(out.r.f, fMax),fMax);
-						out.g = _mm_min_ps(_mm_mul_ps(out.g.f, fMax),fMax);
-						out.b = _mm_min_ps(_mm_mul_ps(out.b.f, fMax),fMax);
+
+						out.r = _mm_min_ps(_mm_mul_ps(out.r.f, fMax), fMax);
+						out.g = _mm_min_ps(_mm_mul_ps(out.g.f, fMax), fMax);
+						out.b = _mm_min_ps(_mm_mul_ps(out.b.f, fMax), fMax);
 
 						__m128i iR = _mm_cvtps_epi32(out.r.f);
 						__m128i iG = _mm_cvtps_epi32(out.g.f);
@@ -740,8 +665,8 @@ void ToyRender::RasterizeTriangle_SMID(Toy_TransformedFace *f)
 
 						iR = _mm_slli_epi32(iR, 16);
 						iG = _mm_slli_epi32(iG, 8);
-						
-						nquad = _mm_or_si128(_mm_or_si128(iR, iG),iB);
+
+						nquad = _mm_or_si128(_mm_or_si128(iR, iG), iB);
 
 						// Store Results
 
@@ -755,11 +680,12 @@ void ToyRender::RasterizeTriangle_SMID(Toy_TransformedFace *f)
 					}
 
 					// Deal with the next 4 pixels
-					dbTileLine = &depthBuffer[x + 4];
+					dbTileLine = depthBuffer + 4;
 					dbquad = _mm_loadu_ps(dbTileLine);
 
-					cbTileLine = &colorBuffer[x + 4];
+					cbTileLine = colorBuffer + 4;
 					oquad = _mm_loadu_si128((__m128i*)cbTileLine);
+
 
 					dbmask = *(__m128i*)&_mm_cmpge_ps(W1, dbquad);
 					// At least one pixel passed depth test!
@@ -768,7 +694,7 @@ void ToyRender::RasterizeTriangle_SMID(Toy_TransformedFace *f)
 						__m128 w = _mm_rcp_ps(W1);
 						for (int f = 0; f < VARYINGS_NUM; f += 2)
 						{
-							parm.Varyings[f + 0] = _mm_mul_ps(w, V0[f + 0]);
+							parm.Varyings[f + 0] = _mm_mul_ps(w, V1[f + 0]);
 							parm.Varyings[f + 1] = _mm_mul_ps(w, V1[f + 1]);
 						}
 						mRC.fs(&parm);
@@ -802,7 +728,7 @@ void ToyRender::RasterizeTriangle_SMID(Toy_TransformedFace *f)
 					// Util now, this blockSize pixels has been dealt with. Get Ready for the next 8.
 					W0 = _mm_add_ps(W0, WDY);
 					W1 = _mm_add_ps(W1, WDY);
-					
+
 					for (int sb = 0; sb < VARYINGS_NUM; sb += 2)
 					{
 						V0[sb + 0] = _mm_add_ps(V0[sb + 0], VDY[sb + 0]);
@@ -817,6 +743,7 @@ void ToyRender::RasterizeTriangle_SMID(Toy_TransformedFace *f)
 				continue;
 			}
 
+			// partially inside.
 			int xe1 = DY21 * x0 - DX21 * y0 + C1;
 			int xe2 = DY32 * x0 - DX32 * y0 + C2;
 			int xe3 = DY13 * x0 - DX13 * y0 + C3;
@@ -835,13 +762,14 @@ void ToyRender::RasterizeTriangle_SMID(Toy_TransformedFace *f)
 						if (cw >= ((float*)mRT.z_buffer->pixels)[i * mRT.z_buffer->w + j])
 						{
 							float rcw = 1.0f / cw;
-							float cx = f->v[0]->varyings[0] + xStep * f->dv[0].x + yStep * f->dv[0].y;
+							float cx = f->v0v[0] + xStep * f->dv[0].x + yStep * f->dv[0].y;
 							cx *= rcw;
-							float cy = f->v[0]->varyings[1] + xStep * f->dv[1].x + yStep * f->dv[1].y;
+							float cy = f->v0v[1] + xStep * f->dv[1].x + yStep * f->dv[1].y;
 							cy *= rcw;
-							float cz = f->v[0]->varyings[2] + xStep * f->dv[2].x + yStep * f->dv[2].y;
+							float cz = f->v0v[2] + xStep * f->dv[2].x + yStep * f->dv[2].y;
 							cz *= rcw;
 							ToyColor c(cx, cy, cz);
+							//ToyColor c(1.0f, 1.0f, 1.0f);
 							SetPixelColor(j, i, c.ToUInt32());
 							((float*)mRT.z_buffer->pixels)[i * mRT.z_buffer->w + j] = cw;
 						}

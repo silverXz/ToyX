@@ -14,6 +14,7 @@ const int VERTEX_ARRAY_SIZE = 1000;
 const int INDICE_ARRAY_SIZE = 3 * VERTEX_ARRAY_SIZE;
 const int CACHE_SIZE = 32;
 const int VARYINGS_NUM = 12;
+const int CLIP_VERTEX_MAX = 9;
 
 class ToyColor {
 public:
@@ -42,6 +43,15 @@ public:
 	{
 		return mColor;
 	}
+};
+
+enum ClipMask{
+	CLIP_POS_X = 1,
+	CLIP_NEG_X = 2,
+	CLIP_POS_Y = 4,
+	CLIP_NEG_Y = 8,
+	CLIP_POS_Z = 16,
+	CLIP_NEG_Z = 32
 };
 
 enum MatrixType {
@@ -85,6 +95,11 @@ struct VertexCache
 	}
 };
 
+struct Toy_Plane
+{
+	float x, y, z, d;
+};
+
 struct Toy_VertexBuffer
 {
 	Toy_Vertex	vBuffer[VERTEX_ARRAY_SIZE];
@@ -105,20 +120,15 @@ struct Toy_TransformedVertexBuffer
 
 struct Toy_TransformedFace
 {
-	Toy_TransformedVertex *v[3];
+	float v0x, v0y, v0w;
+	float v0v[VARYINGS_NUM];
 	
 	int fp1[2];
 	int fp2[2];
 	int fp3[2];
 
-	float v0x, v0y;
-	float v0w;
-
-	float v0v[VARYINGS_NUM];
-
 	toy::vec2 dw;
 	toy::vec2 dv[VARYINGS_NUM];
-
 };
 
 
@@ -213,34 +223,46 @@ public:
 
 private:
 
+	// Rasterize Triangle With SIMD Instructions	
+	void RasterizeTriangle_SIMD(Toy_TransformedFace *f);
+
+	void ProcessV_WithClip();
+	
+	// Process Vertex!
 	void ProcessV();
+	void TransformVertex(uint32_t in, Toy_TransformedVertex *out);
+	void PostProcessV(Toy_TransformedVertex *v);
+
+	// Clipping Functions!
+	inline int CalcClipMask(Toy_TransformedVertex *v);
+	void ClipTriangle(Toy_TransformedVertex *v1, Toy_TransformedVertex *v2, Toy_TransformedVertex *v3);
+	void InsertTransformedFace(Toy_TransformedVertex *v1, Toy_TransformedVertex *v2, Toy_TransformedVertex *v3);
+
+	// Process Rasterization!
 	void ProcessR();
+
+	// Process Pixels!
+	// !Not implemented yet!
 	void ProcessP();
 
-	void RasterizeTriangle(Toy_TransformedFace* f);
-	void RasterizeTriangle_SMID(Toy_TransformedFace *f);
-
+	
+	
+	// Helper Functions
 	inline int iRound(float f)
 	{
 		return static_cast<int>(f + 0.5f);
 	}
 
-	void PostProcessV(Toy_TransformedVertex *v);
-
-	bool EdgeFunc(int a, int b, int c, int x, int y);
-
-	void DrawTriangleScreenSpace(float x1, float y1, float x2, float y2, float x3, float y3, const ToyColor& c);
-
-	void DrawHorizontal2DLine(int x1, int x2, int y, const ToyColor& color);
-	void DrawVertical2DLine(int y1, int y2, int x, const ToyColor& color);
-
+	// Clear Vertex Caches!
 	void ClearCache();
 
+	// Compute Varyings Gradient Along Axis X&Y.
 	void ComputeGradient(float C, float di21, float di31, float dx21, float dy21, float dx31, float dy31, toy::vec2 *g);
 
 private:
 
 	VertexCache					vCache[CACHE_SIZE];
+
 	Toy_VertexBuffer			vBuffer;
 	Toy_IndiceBuffer			iBuffer;
 
@@ -253,7 +275,6 @@ private:
 	std::ofstream		dFile;
 
 	RenderTarget		mRT;
-
 	// Render State
 	RenderContext	mRC;
 };
