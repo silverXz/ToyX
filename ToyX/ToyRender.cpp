@@ -177,7 +177,7 @@ void ToyRender::LoadCube()
 	UploadData(GEOMETRY_VERTEX, v, sizeof(v));
 
 	uint32_t indices[] = { 0,1,2,0,2,3,0,4,5,0,5,1,1,5,6,1,6,2,4,7,6,4,6,5,0,3,7,0,7,4,3,2,6,3,6,7};
-	//uint32_t indices[] = { 1, 5, 6, 1, 6, 2 };
+	//uint32_t indices[] = { 0,1,2,0,5,1,1,5,2 };
 	UploadData(GEOMETRY_INDICE, indices, sizeof(indices));
 }
 
@@ -345,14 +345,17 @@ void ToyRender::ClipTriangle(Toy_TransformedVertex *v1, Toy_TransformedVertex *v
 	// Several lambda expression to help!
 
 	// Calculate the signed distance between a vertex and a plane.
-	auto calcPointPlaneDistance = [](const Toy_Plane *p, const Toy_TransformedVertex *v) { 	return p->x * v->p.x + p->y * v->p.y + p->z * v->p.z + p->d;};
+	auto calcPointPlaneDistance = [](const Toy_Plane *p, const Toy_TransformedVertex *v) { 	return p->x * v->p.x + p->y * v->p.y + p->z * v->p.z + p->d * v->p.w;};
 
 	// Determine whether two floats has different signs.
 	auto hasDifferentSigns = [](float a, float b) { return (a >= 0.0f && b < 0.0f) || (a < 0.0f && b >= 0.0f);	};
 
 	// Interpolate Vertex Attributes
 	auto interpolateV = [](const Toy_TransformedVertex *v1, const Toy_TransformedVertex *v2, float t, Toy_TransformedVertex *out) {
-		out->p = v1->p + (v2->p - v1->p) * t;
+		out->p.x = v1->p.x + (v2->p.x - v1->p.x) * t;
+		out->p.y = v1->p.y + (v2->p.y - v1->p.y) * t;
+		out->p.z = v1->p.z + (v2->p.z - v1->p.z) * t;
+		out->p.w = v1->p.w + (v2->p.w - v1->p.w) * t;
 		for (int i = 0; i < VARYINGS_NUM; ++i)
 			out->varyings[i] = v1->varyings[i] + (v2->varyings[i] - v1->varyings[i]) * t;
 	};
@@ -373,7 +376,7 @@ void ToyRender::ClipTriangle(Toy_TransformedVertex *v1, Toy_TransformedVertex *v
 
 				// The first vertex of this edge is inside p[i].We should add its indice to "out" array!
 				if (d1 >= 0) 
-					out[outCnt++] = d1;
+					out[outCnt++] = id1;
 				
 				// Next, we have to find whether this edge is cut by p[i].
 				// If yes, interpolate the cut vertex and add its indice to "out" array!
@@ -388,16 +391,26 @@ void ToyRender::ClipTriangle(Toy_TransformedVertex *v1, Toy_TransformedVertex *v
 				id1 = id2;
 				d1 = d2;
 			}
+
+			// All vertices are clipped out by this plane. No need to process further.
+			if (outCnt < 3)
+				return;
+
+			std::swap(in, out);
+
+			inCnt = outCnt;
+			outCnt = 0;
+
 		}
 		
-		std::swap(in, out);
 
-		inCnt = outCnt;
-		outCnt = 0;
 	}
 
 	for (int i = 0; i < inCnt; ++i)
-		PostProcessV(&v[in[i]]);
+	{
+		Toy_TransformedVertex *p = &v[in[i]];
+		PostProcessV(p);
+	}
 
 	for (int i = 1; i < inCnt - 1; ++i)
 		InsertTransformedFace(&v[in[0]], &v[in[i]], &v[in[i + 1]]);
@@ -558,6 +571,10 @@ void ToyRender::RasterizeTriangle_SIMD(Toy_TransformedFace *f)
 	int cxMax = (((xmax + 0xF) >> 4) + blockSize) &(~(blockSize - 1));
 	int cyMin = ((ymin + 0xF) >> 4) &(~(blockSize - 1));
 	int cyMax = (((ymax + 0xF) >> 4) + blockSize) &(~(blockSize - 1));
+
+	cxMax = cxMax > mRT.back_buffer->w ? mRT.back_buffer->w : cxMax;
+	cyMax = cyMax > mRT.back_buffer->h ? mRT.back_buffer->h : cyMax;
+	
 
 	int E1 = DY21 * (cxMin << 4) - DX21 * (cyMin << 4) + C1;
 	int E2 = DY32 * (cxMin << 4) - DX32 * (cyMin << 4) + C2;

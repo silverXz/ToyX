@@ -12,7 +12,7 @@ void CubeVS(VS_PARAM* vparm)
 	v_out->varyings[0] = v_in->c.x;
 	v_out->varyings[1] = v_in->c.y;
 	v_out->varyings[2] = v_in->c.z;
-}
+} 
 
 void CubeFS(PS_PARAM* pparm)
 {

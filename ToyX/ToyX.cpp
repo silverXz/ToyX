@@ -156,8 +156,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	auto nFrame = 0;
 
-	toyRender.SetMatrix(TOY_MATRIX_VIEW, lookAt(vec3(4.0f, 4.0f, 4.0f), vec3(0.0f), vec3(0.0f, 1.0f, 0.0f)));
-	toyRender.SetMatrix(TOY_MATRIX_PROJECTION, perspective(90.0f, (float)WINDOW_WIDTH / WINDOW_HEIGHT, 0.1f, 100.0f));
+	toyRender.SetMatrix(TOY_MATRIX_VIEW, lookAt(vec3(4.0f, 4.0f,4.0f), vec3(0.0f,0.0f,0.0f), vec3(0.0f, 1.0f, 0.0f)));
+	toyRender.SetMatrix(TOY_MATRIX_PROJECTION, perspective(90.0f, (float)WINDOW_WIDTH / WINDOW_HEIGHT, 0.1f, 15.0f));
 	toyRender.SetViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 	toyRender.SetVertexShader(CubeVS);
 	toyRender.SetFragmentShader(CubeFS);
@@ -176,9 +176,12 @@ int _tmain(int argc, _TCHAR* argv[])
 		
 		past += curTime - last;
 
-		rotAngle += rotSpeed * (curTime - last) * 0.001f;
+		float dt = (curTime - last) * 0.001f;
+		rotAngle += rotSpeed * dt;
 		if (rotAngle > toy::TWOPI)
 			rotAngle -= toy::TWOPI;
+
+		//toyRender.SetMatrix(TOY_MATRIX_VIEW, lookAt(vec3(4.0f + xMove, 4.0f, 4.0f + zMove), vec3(0.0f + xMove, 0.0f, 0.0f + zMove), vec3(0.0f, 1.0f, 0.0f)));
 		toyRender.SetMatrix(TOY_MATRIX_MODEL, toy::rotate(rotAngle, toy::vec3(0.0f, 1.0f, 0.0f)));
 
 		last = curTime;

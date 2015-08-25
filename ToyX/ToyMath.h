@@ -1185,6 +1185,7 @@ namespace toy
 		mat.v[10] = -(farClip + nearClip) / zRange;
 		mat.v[14] = -(Type)2 * farClip * nearClip / zRange;
 		mat.v[11] = (Type)-1;
+		mat.v[15] = (Type)0;
 		return mat;
 	}
 
