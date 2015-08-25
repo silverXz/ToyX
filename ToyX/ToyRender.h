@@ -157,12 +157,17 @@ struct RenderTarget
 {
 	SDL_Surface *back_buffer;
 	SDL_Surface	*z_buffer;
+	SDL_Surface *tex0;
 
-	RenderTarget() : back_buffer(nullptr), z_buffer(nullptr) {}
+	RenderTarget() : back_buffer(nullptr), z_buffer(nullptr),tex0(nullptr) {}
 	~RenderTarget()
 	{
-		SDL_FreeSurface(back_buffer);
-		SDL_FreeSurface(z_buffer);
+		if (back_buffer)
+			SDL_FreeSurface(back_buffer);
+		if (z_buffer)
+			SDL_FreeSurface(z_buffer);
+		if (tex0)
+			SDL_FreeSurface(tex0);
 	}
 };
 
@@ -179,7 +184,7 @@ public:
 	~ToyRender();
 
 
-	void SetRenderTarget(SDL_Surface *cb,SDL_Surface *zb);
+	void SetRenderTarget(SDL_Surface *cb,SDL_Surface *zb,SDL_Surface *tb);
 
 
 	void Begin();
@@ -240,6 +245,11 @@ private:
 
 	// Process Rasterization!
 	void ProcessR();
+
+	inline void CalcVaryings(Toy_TransformedFace* f,int x,int y,__m128 &W0,__m128 &W1,__m128 &WDY,__m128 *V0,__m128 *V1,__m128 *VDY);
+	inline void IncVaryingsAlongY(__m128 &W0, __m128 &W1, __m128 WDY, __m128 *V0, __m128 *V1, __m128 *VDY);
+	inline __m128i ConvertColorFormat(SSE_Color3 &src);
+	inline void UpdateRenderTarget();
 
 	// Process Pixels!
 	// !Not implemented yet!

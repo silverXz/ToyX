@@ -4,7 +4,7 @@
 #include "stdafx.h"
 
 
-#include <SDL2/SDL.h>
+#include <SDL/SDL.h>
 #include <memory.h>
 #include <stdint.h>
 #include <windows.h>
@@ -139,7 +139,15 @@ int _tmain(int argc, _TCHAR* argv[])
 		return -1;
 	}
 
-	toyRender.SetRenderTarget(cb, zb);
+	SDL_Surface *tb = SDL_CreateRGBSurface(0, 1024, 1024, 32, 0, 0, 0, 0);
+	if (!tb)
+	{
+		std::cerr << "Failed to create texture buffer!\n";
+		PressAnyKeyToContinue();
+		return -1;
+	}
+
+	toyRender.SetRenderTarget(cb, zb,tb);
 
 
 	auto past = 0.0;
