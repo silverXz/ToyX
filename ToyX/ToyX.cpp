@@ -147,7 +147,11 @@ int _tmain(int argc, _TCHAR* argv[])
 		return -1;
 	}
 
-	toyRender.SetRenderTarget(cb, zb,tb);
+	RenderTarget rt;
+	rt.back_buffer = cb;
+	rt.z_buffer = zb;
+
+	toyRender.SetRenderTarget(rt);
 
 
 	auto past = 0.0;
@@ -201,8 +205,9 @@ int _tmain(int argc, _TCHAR* argv[])
 		toyRender.ClearColorBuffer(ToyColor(0.0f,0.0f,0.0f));
 		toyRender.ClearDepthBuffer();
 
-		toyRender.DrawMesh();
-		
+		//toyRender.DrawMesh();
+		toyRender.DrawMesh_TileBase();
+
 		toyRender.End();
 
 		SDL_UpdateWindowSurface(g_Window);

@@ -6,170 +6,10 @@
 #include <fstream>
 #include "ToyMath.h"
 #include "Shader.h"
-
-#define FLOAT_CAST(x) static_cast<float>(x)
-
-
-const int VERTEX_ARRAY_SIZE = 1000;
-const int INDICE_ARRAY_SIZE = 3 * VERTEX_ARRAY_SIZE;
-const int CACHE_SIZE = 32;
-const int VARYINGS_NUM = 12;
-const int CLIP_VERTEX_MAX = 9;
-
-class ToyColor {
-public:
-	uint32_t mColor;
-
-	explicit ToyColor(uint32_t r, uint32_t g, uint32_t b, uint32_t a = 255)
-	{
-		mColor = ((a << 24) | (r << 16) | (g << 8) | b);
-	}
-
-	inline explicit ToyColor(float r, float g, float b, float a = 1.0f)
-	{
-		const uint32_t mask = ~0xFF;
-		uint32_t red = (uint32_t)(255.0f * r);
-		red = (red & mask) ? 255 : red;
-		uint32_t green = (uint32_t)(255.0f * g);
-		green = (green & mask) ? 255 : green;
-		uint32_t blue = (uint32_t)(255.0f * b);
-		blue = (blue & mask) ? 255 : blue;
-		uint32_t alpha = (uint32_t)(255.0f * a);
-		alpha = (alpha & mask) ? 255 : alpha;
-		mColor = ((alpha << 24) | (red << 16) | (green << 8) | blue);
-	}
-
-	uint32_t ToUInt32() const
-	{
-		return mColor;
-	}
-};
-
-enum ClipMask{
-	CLIP_POS_X = 1,
-	CLIP_NEG_X = 2,
-	CLIP_POS_Y = 4,
-	CLIP_NEG_Y = 8,
-	CLIP_POS_Z = 16,
-	CLIP_NEG_Z = 32
-};
-
-enum MatrixType {
-	TOY_MATRIX_MODEL = 0,
-	TOY_MATRIX_VIEW,
-	TOY_MATRIX_PROJECTION,
-	TOY_MATRIX_TYPE_NUM
-};
-
-enum GeometryDataType {
-	GEOMETRY_VERTEX,
-	GEOMETRY_INDICE
-};
-
-
-struct Toy_Vertex
-{
-	toy::vec4 p;
-	toy::vec4 c;
-	toy::vec4 n;
-	float u, v;
-};
-
-struct Toy_TransformedVertex
-{
-	toy::vec4 p;
-	float varyings[VARYINGS_NUM];
-};
-
-struct VertexCache
-{
-	uint32_t				tag;
-	Toy_TransformedVertex	*v;
-
-	VertexCache() : tag(UINT_MAX), v(nullptr) {}
-
-	inline void Clear()
-	{
-		tag = UINT_MAX;
-		v = nullptr;
-	}
-};
-
-struct Toy_Plane
-{
-	float x, y, z, d;
-};
-
-struct Toy_VertexBuffer
-{
-	Toy_Vertex	vBuffer[VERTEX_ARRAY_SIZE];
-	int			size;
-};
-
-struct Toy_IndiceBuffer
-{
-	uint32_t	iBuffer[INDICE_ARRAY_SIZE];
-	int			size;
-};
-
-struct Toy_TransformedVertexBuffer
-{
-	Toy_TransformedVertex tvBuffer[VERTEX_ARRAY_SIZE];
-	int size;
-};
-
-struct Toy_TransformedFace
-{
-	float v0x, v0y, v0w;
-	float v0v[VARYINGS_NUM];
-	
-	int fp1[2];
-	int fp2[2];
-	int fp3[2];
-
-	toy::vec2 dw;
-	toy::vec2 dv[VARYINGS_NUM];
-};
+#include "ToyTypes.h"
 
 
 
-
-
-
-
-struct GlobalUniforms
-{
-	toy::mat4 model;
-	toy::mat4 view;
-	toy::mat4 projection;
-	toy::mat4 mvp;
-	toy::vec4 viewport;
-};
-
-struct RenderContext
-{
-	VertexShader	vs;
-	FragmentShader	fs;
-	GlobalUniforms	globals;
-};
-
-struct RenderTarget
-{
-	SDL_Surface *back_buffer;
-	SDL_Surface	*z_buffer;
-	SDL_Surface *tex0;
-
-	RenderTarget() : back_buffer(nullptr), z_buffer(nullptr),tex0(nullptr) {}
-	~RenderTarget()
-	{
-		if (back_buffer)
-			SDL_FreeSurface(back_buffer);
-		if (z_buffer)
-			SDL_FreeSurface(z_buffer);
-		if (tex0)
-			SDL_FreeSurface(tex0);
-	}
-};
 
 
 class ToyRender
@@ -184,7 +24,10 @@ public:
 	~ToyRender();
 
 
-	void SetRenderTarget(SDL_Surface *cb,SDL_Surface *zb,SDL_Surface *tb);
+	void InitTile();
+
+
+	void SetRenderTarget(const RenderTarget& rRT);
 
 
 	void Begin();
@@ -194,10 +37,10 @@ public:
 	// Draw Calls
 
 	// Bresenham algorithm
-	void Draw2DLines(int x1, int y1, int x2, int y2, const ToyColor &color);
+	void Draw2DLines(int x1, int y1, int x2, int y2, uint32_t color);
 
 
-	void Draw3DLines(const toy::vec4& p1, const toy::vec4 p2, const ToyColor &color);
+	void Draw3DLines(const toy::vec4& p1, const toy::vec4 p2, uint32_t color);
 
 	inline void SetPixelColor(int x, int y, uint32_t c)
 	{
@@ -226,10 +69,17 @@ public:
 
 	void DrawMesh();
 
+	void DrawMesh_TileBase();
+
 private:
+
+	// For Debug Use.
+	void DrawTileGrid();
 
 	// Rasterize Triangle With SIMD Instructions	
 	void RasterizeTriangle_SIMD(Toy_TransformedFace *f);
+
+	void Tilize(uint32_t faceid);
 
 	void ProcessV_WithClip();
 	
@@ -246,7 +96,16 @@ private:
 	// Process Rasterization!
 	void ProcessR();
 
+	void RasterizeTile();
+
+	void RenderFragments();
+
+	void RenderTileFragments(Toy_Fragment *frag);
+	void RenderBlockFragments(Toy_Fragment *frag);
+	void RenderMaskedFragments(Toy_Fragment *frag);
+
 	inline void CalcVaryings(Toy_TransformedFace* f,int x,int y,__m128 &W0,__m128 &W1,__m128 &WDY,__m128 *V0,__m128 *V1,__m128 *VDY);
+	inline void PreInterpolateVaryings(__m128 &W, __m128 *iV, SSE_Float *oV);
 	inline void IncVaryingsAlongY(__m128 &W0, __m128 &W1, __m128 WDY, __m128 *V0, __m128 *V1, __m128 *VDY);
 	inline __m128i ConvertColorFormat(SSE_Color3 &src);
 	inline void UpdateRenderTarget();
@@ -260,11 +119,19 @@ private:
 	// Helper Functions
 	inline int iRound(float f)
 	{
-		return static_cast<int>(f + 0.5f);
+		int retval;
+		__asm {
+			fld f
+			fistp retval
+		}
+		return retval;
+		//return static_cast<int>(f + 0.5f);
 	}
 
 	// Clear Vertex Caches!
 	void ClearCache();
+
+	void ClearTile();
 
 	// Compute Varyings Gradient Along Axis X&Y.
 	void ComputeGradient(float C, float di21, float di31, float dx21, float dy21, float dx31, float dy31, toy::vec2 *g);
@@ -279,6 +146,10 @@ private:
 	Toy_TransformedVertex		tvBuffer[VERTEX_ARRAY_SIZE];
 
 	std::vector<Toy_TransformedFace>	faceBuffer;
+
+	std::vector<Toy_Tile>		m_aTile;
+	int							m_TileXCount;
+	int							m_TileYCount;
 
 	Toy_VertexBuffer	tvb;
 

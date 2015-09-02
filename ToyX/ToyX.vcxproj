@@ -89,6 +89,7 @@
     <ClInclude Include="targetver.h" />
     <ClInclude Include="ToyMath.h" />
     <ClInclude Include="ToyRender.h" />
+    <ClInclude Include="ToyTypes.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Shader.cpp" />

@@ -57,12 +57,12 @@ void ToyRender::SetViewport(int x, int y, int width, int height)
 	mRC.globals.viewport = vec4(FLOAT_CAST(x),FLOAT_CAST(y), FLOAT_CAST(width), FLOAT_CAST(height));
 }
 
-void ToyRender::Draw2DLines(int x1, int y1, int x2, int y2, const ToyColor &color)
+void ToyRender::Draw2DLines(int x1, int y1, int x2, int y2, uint32_t color)
 {
 	int dy = abs(y2 - y1);
 	int dx = abs(x2 - x1);
 	if (dx == 0 && dy == 0)
-		SetPixelColor(x1, y1, color.ToUInt32());
+		SetPixelColor(x1, y1, color);
 	int signx = x1 < x2 ? 1 : -1;
 	int signy = y1 < y2 ? 1 : -1;
 	bool bSwap = false;
@@ -79,7 +79,7 @@ void ToyRender::Draw2DLines(int x1, int y1, int x2, int y2, const ToyColor &colo
 
 	for (int i = 0; i <= dx; ++i)
 	{
-		SetPixelColor(curx, cury, color.ToUInt32());
+		SetPixelColor(curx, cury, color);
 		if (err > 0)
 		{
 			if (bSwap)
@@ -98,7 +98,7 @@ void ToyRender::Draw2DLines(int x1, int y1, int x2, int y2, const ToyColor &colo
 	}
 }
 
-void ToyRender::Draw3DLines(const toy::vec4& p1, const toy::vec4 p2, const ToyColor &color)
+void ToyRender::Draw3DLines(const toy::vec4& p1, const toy::vec4 p2, uint32_t color)
 {
 	vec4 clip1 = mRC.globals.mvp * p1;
 	vec4 clip2 = mRC.globals.mvp * p2;
@@ -196,11 +196,10 @@ void ToyRender::End()
 	SDL_UnlockSurface(mRT.back_buffer);
 }
 
-void ToyRender::SetRenderTarget(SDL_Surface *cb, SDL_Surface *zb,SDL_Surface *tb)
+void ToyRender::SetRenderTarget(const RenderTarget &rRT)
 {
-	mRT.back_buffer = cb;
-	mRT.z_buffer = zb;
-	mRT.tex0 = tb;
+	mRT = rRT;
+	InitTile();
 }
 
 
@@ -492,11 +491,34 @@ void ToyRender::PostProcessV(Toy_TransformedVertex *v)
 
 void ToyRender::DrawMesh()
 {
-	//ProcessV();
 	ProcessV_WithClip();
 	
 	ProcessR();
+
+#ifdef _DEBUG
+	DrawTileGrid();
+#endif
+
 }
+
+
+void ToyRender::DrawMesh_TileBase()
+{
+	ProcessV_WithClip();
+
+	ClearTile();
+	for (int i = 0; i < faceBuffer.size(); ++i)
+		Tilize(i);
+
+	RasterizeTile();
+
+	RenderFragments();
+
+#ifdef _DEBUG
+	DrawTileGrid();
+#endif
+}
+
 
 void ToyRender::SetVertexShader(VertexShader vs)
 {
@@ -646,12 +668,8 @@ void ToyRender::RasterizeTriangle_SIMD(Toy_TransformedFace *f)
 					// Not Zero : means at least 1 pixel passed the depth test!
 					if (_mm_movemask_ps(*(__m128*)&dbmask))
 					{
-						__m128 w = _mm_rcp_ps(W0);
-						for (int f = 0; f < VARYINGS_NUM; f += 2)
-						{
-							parm.Varyings[f + 0] = _mm_mul_ps(w, V0[f + 0]);
-							parm.Varyings[f + 1] = _mm_mul_ps(w, V0[f + 1]);
-						}
+						PreInterpolateVaryings(W0, V0, parm.Varyings);
+
 
 						mRC.fs(&parm);
 
@@ -659,8 +677,8 @@ void ToyRender::RasterizeTriangle_SIMD(Toy_TransformedFace *f)
 
 						// Store Depth Info.
 						dbquad = _mm_or_ps(_mm_and_ps(*(__m128*)&dbmask, W0), _mm_andnot_ps(*(__m128*)&dbmask, dbquad));
-						_mm_storeu_si128((__m128i*)dbTileLine, *(__m128i*)&dbquad);
-
+						_mm_storeu_ps(dbTileLine, dbquad);
+						
 						// Store Color Info.
 						nquad = _mm_or_si128(_mm_and_si128(dbmask, nquad), _mm_andnot_si128(dbmask, oquad));
 						_mm_storeu_si128((__m128i*)cbTileLine, nquad);
@@ -679,12 +697,8 @@ void ToyRender::RasterizeTriangle_SIMD(Toy_TransformedFace *f)
 					// At least one pixel passed depth test!
 					if (_mm_movemask_ps(*(__m128*)&dbmask))
 					{
-						__m128 w = _mm_rcp_ps(W1);
-						for (int f = 0; f < VARYINGS_NUM; f += 2)
-						{
-							parm.Varyings[f + 0] = _mm_mul_ps(w, V1[f + 0]);
-							parm.Varyings[f + 1] = _mm_mul_ps(w, V1[f + 1]);
-						}
+						PreInterpolateVaryings(W1, V1, parm.Varyings);
+
 						mRC.fs(&parm);
 
 						nquad = ConvertColorFormat(parm.Output);
@@ -693,8 +707,8 @@ void ToyRender::RasterizeTriangle_SIMD(Toy_TransformedFace *f)
 
 						// Store Depth Info.
 						dbquad = _mm_or_ps(_mm_and_ps(*(__m128*)&dbmask, W0), _mm_andnot_ps(*(__m128*)&dbmask, dbquad));
-						_mm_storeu_si128((__m128i*)dbTileLine, *(__m128i*)&dbquad);
-
+						_mm_storeu_ps(dbTileLine, dbquad);
+						
 						// Store Color Info.
 						nquad = _mm_or_si128(_mm_and_si128(dbmask, nquad), _mm_andnot_si128(dbmask, oquad));
 						_mm_storeu_si128((__m128i*)cbTileLine, nquad);
@@ -745,7 +759,7 @@ void ToyRender::RasterizeTriangle_SIMD(Toy_TransformedFace *f)
 				__m128i msk3 = _mm_cmpgt_epi32(Edg3, _mm_setzero_si128());
 				
 				__m128i cMask = _mm_and_si128(_mm_and_si128(msk1, msk2), msk3);
-				
+			
 				SSE_ALIGN PS_PARAM parm;
 				parm.uniforms = &mRC.globals;
 				__m128 dbquad;
@@ -798,7 +812,7 @@ void ToyRender::RasterizeTriangle_SIMD(Toy_TransformedFace *f)
 				msk3 = _mm_cmpgt_epi32(Edg3, _mm_setzero_si128());
 
 				cMask = _mm_and_si128(_mm_and_si128(msk1, msk2), msk3);
-
+				
 				dbTileLine = depthBuffer + 4;
 				cbTileLine = colorBuffer + 4;
 				dbquad = _mm_loadu_ps(dbTileLine);
@@ -903,4 +917,574 @@ __m128i ToyRender::ConvertColorFormat(SSE_Color3 &src)
 
 	return _mm_or_si128(_mm_or_si128(iR, iG), iB);
 }
+
+void ToyRender::InitTile()
+{
+	int iWidth = mRT.back_buffer->w;
+	int iHeight = mRT.back_buffer->h;
+
+	m_TileXCount = (iWidth + TILE_SIZE - 1) >> TILE_SIZE_SHIFT;
+	m_TileYCount = (iHeight + TILE_SIZE - 1) >> TILE_SIZE_SHIFT;
+
+	m_aTile.resize(m_TileXCount * m_TileYCount);
+
+	for (int y = 0; y < m_TileYCount; ++y)
+	{
+		for (int x = 0; x < m_TileXCount; ++x)
+		{
+			Toy_Tile &tile = m_aTile[y * m_TileXCount + x];
+			tile.x = x * TILE_SIZE;
+			tile.y = y * TILE_SIZE;
+			if (x == m_TileXCount - 1)
+			{
+				int iExtraX = iWidth & (TILE_SIZE - 1);
+				tile.w = iExtraX ? iExtraX : TILE_SIZE;
+			}
+			else
+				tile.w = TILE_SIZE;
+
+			if (y == m_TileYCount - 1)
+			{
+				int iExtraY = iHeight & (TILE_SIZE - 1);
+				tile.h = iExtraY ? iExtraY : TILE_SIZE;
+			}
+			else
+				tile.h = TILE_SIZE;
+		}
+	}
+}
+
+void ToyRender::Tilize(uint32_t faceid)
+{
+	Toy_TransformedFace *f = &faceBuffer[faceid];
+	int DX21 = f->fp2[0] - f->fp1[0];
+	int DY21 = f->fp2[1] - f->fp1[1];
+	int DX32 = f->fp3[0] - f->fp2[0];
+	int DY32 = f->fp3[1] - f->fp2[1];
+	int DX13 = f->fp1[0] - f->fp3[0];
+	int DY13 = f->fp1[1] - f->fp3[1];
+
+	int faceOrient = DX13*DY21 - DX21*DY13;
+
+	if (faceOrient > 0)
+		return;
+
+
+	int C1 = -DY21 * f->fp1[0] + DX21 * f->fp1[1];
+	int C2 = -DY32 * f->fp2[0] + DX32 * f->fp2[1];
+	int C3 = -DY13 * f->fp3[0] + DX13 * f->fp3[1];
+
+	if (DY21 > 0 || (DY21 == 0 && DX21 > 0))
+		++C1;
+	if (DY32 > 0 || (DY32 == 0 && DX32 > 0))
+		++C2;
+	if (DY13 > 0 || (DY13 == 0 && DX13 > 0))
+		++C3;
+
+	const int DDX21 = DX21 << 4;
+	const int DDX32 = DX32 << 4;
+	const int DDX13 = DX13 << 4;
+	const int DDY21 = DY21 << 4;
+	const int DDY32 = DY32 << 4;
+	const int DDY13 = DY13 << 4;
+
+
+	int xmin = std::min(std::min(f->fp1[0], f->fp2[0]), f->fp3[0]);
+	int xmax = std::max(std::max(f->fp1[0], f->fp2[0]), f->fp3[0]);
+	int ymin = std::min(std::min(f->fp1[1], f->fp2[1]), f->fp3[1]);
+	int ymax = std::max(std::max(f->fp1[1], f->fp2[1]), f->fp3[1]);
+
+	// Boundary Index For Tiles
+	int ixMinTile = ((xmin + 0xF) >> 4) >> TILE_SIZE_SHIFT;
+	int ixMaxTile = ((xmax + 0xF) >> 4) >> TILE_SIZE_SHIFT;
+	int iyMinTile = ((ymin + 0xF) >> 4) >> TILE_SIZE_SHIFT;
+	int iyMaxTile = ((ymax + 0xF) >> 4) >> TILE_SIZE_SHIFT;
+
+	// Tile[x][y]
+	ixMaxTile = ixMinTile >= m_TileXCount ? m_TileXCount - 1 : ixMaxTile;
+	iyMaxTile = iyMaxTile >= m_TileYCount ? m_TileYCount - 1 : iyMaxTile;
+
+
+	for (int y = iyMinTile; y <= iyMaxTile; ++y)
+	{
+		for (int x = ixMinTile; x <= ixMaxTile; ++x)
+		{
+			// Get Tile Corner Fix Point Coordinate.
+			int iTile = y * m_TileXCount + x;
+
+			Toy_Tile &tile = m_aTile[iTile];
+
+			int x0 = tile.x << 4;
+			int x1 = (tile.x + TILE_SIZE - 1) << 4;
+			int y0 = tile.y << 4;
+			int y1 = (tile.y + TILE_SIZE - 1) << 4;
+
+			auto calcEdgeMask = [&](int C, int dy, int dx) {
+				bool m0 = (C + dy * x0 - dx * y0) > 0;
+				bool m1 = (C + dy * x0 - dx * y1) > 0;
+				bool m2 = (C + dy * x1 - dx * y0) > 0;
+				bool m3 = (C + dy * x1 - dx * y1) > 0;
+				return (m0 << 0) | (m1 << 1) | (m2 << 2) | (m3 << 3);
+			};
+
+			// Test Tile Against 3 Edges
+			int a1 = calcEdgeMask(C1, DY21, DX21);
+			int a2 = calcEdgeMask(C2, DY32, DX32);
+			int a3 = calcEdgeMask(C3, DY13, DX13);
+
+			// Tile Completely Outside Triangle!
+			if (a1 == 0 || a2 == 0 || a3 == 0)
+				continue;
+
+			// Tile Completely Inside Triangle
+			if (a1 == 0xF && a2 == 0xF && a3 == 0xF)
+			{
+				if(tile.w == TILE_SIZE && tile.h == TILE_SIZE)
+					tile.aTilizedFace.push_back(Toy_TilizedFace{ faceid, TC_ALL });
+			}
+			else
+				tile.aTilizedFace.push_back(Toy_TilizedFace{ faceid, TC_PARTIAL });
+		}
+	}
+}
+
+void ToyRender::ClearTile()
+{
+	for (auto& x : m_aTile)
+	{
+		x.aTilizedFace.clear();
+		x.aFragment.clear();
+	}
+}
+
+void ToyRender::RasterizeTile()
+{
+	for (int i = 0; i < m_aTile.size(); ++i)
+	{
+		Toy_Tile &tile = m_aTile[i];
+		for (int j = 0; j < tile.aTilizedFace.size(); ++j)
+		{
+			Toy_TilizedFace &tf = tile.aTilizedFace[j];
+
+			// This Face is totally covering this tile.
+			if (tf.coverageType == TC_ALL)
+			{
+				Toy_Fragment frag;
+				frag.x = tile.x;
+				frag.y = tile.y;
+				frag.coverType = FC_TILE;
+				frag.faceID = tf.id;
+				tile.aFragment.push_back(frag);
+				continue;
+			}
+			
+			// This face is partially covering this tile.
+			Toy_TransformedFace *f = &faceBuffer[tf.id];
+
+			int DX21 = f->fp2[0] - f->fp1[0];
+			int DY21 = f->fp2[1] - f->fp1[1];
+			int DX32 = f->fp3[0] - f->fp2[0];
+			int DY32 = f->fp3[1] - f->fp2[1];
+			int DX13 = f->fp1[0] - f->fp3[0];
+			int DY13 = f->fp1[1] - f->fp3[1];
+
+			int faceOrient = DX13*DY21 - DX21*DY13;
+
+			if (faceOrient > 0)
+				return;
+
+
+			int C1 = -DY21 * f->fp1[0] + DX21 * f->fp1[1];
+			int C2 = -DY32 * f->fp2[0] + DX32 * f->fp2[1];
+			int C3 = -DY13 * f->fp3[0] + DX13 * f->fp3[1];
+
+			if (DY21 > 0 || (DY21 == 0 && DX21 > 0))
+				++C1;
+			if (DY32 > 0 || (DY32 == 0 && DX32 > 0))
+				++C2;
+			if (DY13 > 0 || (DY13 == 0 && DX13 > 0))
+				++C3;
+
+			const int DDX21 = DX21 << 4;
+			const int DDX32 = DX32 << 4;
+			const int DDX13 = DX13 << 4;
+			const int DDY21 = DY21 << 4;
+			const int DDY32 = DY32 << 4;
+			const int DDY13 = DY13 << 4;
+
+			const int blockSize = 8;
+
+			// For Every 8 * 8 Blocks.
+			for (int y = tile.y; y < tile.y + tile.h; y += blockSize)
+			{
+				for (int x = tile.x; x < tile.x + tile.w; x += blockSize)
+				{
+					int x0 = x << 4;
+					int x1 = ( x + blockSize - 1 ) << 4;
+					int y0 = y << 4;
+					int y1 = ( y + blockSize - 1 ) << 4;
+
+					auto calcEdgeMask = [&](int C, int dy, int dx) {
+						bool m0 = (C + dy * x0 - dx * y0) > 0;
+						bool m1 = (C + dy * x0 - dx * y1) > 0;
+						bool m2 = (C + dy * x1 - dx * y0) > 0;
+						bool m3 = (C + dy * x1 - dx * y1) > 0;
+						return (m0 << 0) | (m1 << 1) | (m2 << 2) | (m3 << 3);
+					};
+
+					// Test Block Against 3 Edges
+					int a1 = calcEdgeMask(C1, DY21, DX21);
+					int a2 = calcEdgeMask(C2, DY32, DX32);
+					int a3 = calcEdgeMask(C3, DY13, DX13);
+
+					// Block Completely Outside Triangle!
+					if (a1 == 0 || a2 == 0 || a3 == 0)
+						continue;
+					
+					// Block Totally Inside Triangle!
+					if (a1 == 0xF && a2 == 0xF && a3 == 0xF)
+					{
+						Toy_Fragment frag;
+						frag.x = x;
+						frag.y = y;
+						frag.coverType = FC_BLOCK;
+						frag.faceID = tf.id;
+						tile.aFragment.push_back(frag);
+						continue;
+					}
+
+					// Block Partially Inside Trianglel!
+					// Calculate Coverage Mask!
+					__m128i B1 = _mm_set1_epi32(C1 + DY21 * x0 - DX21 * y0);
+					__m128i B2 = _mm_set1_epi32(C2 + DY32 * x0 - DX32 * y0);
+					__m128i B3 = _mm_set1_epi32(C3 + DY13 * x0 - DX13 * y0);
+
+					__m128i offsetDDY21 = _mm_set_epi32(3 * DDY21, 2 * DDY21, DDY21, 0);
+					__m128i offsetDDY32 = _mm_set_epi32(3 * DDY32, 2 * DDY32, DDY32, 0);
+					__m128i offsetDDY13 = _mm_set_epi32(3 * DDY13, 2 * DDY13, DDY13, 0);
+
+					__m128i offsetDDY21ex = _mm_set1_epi32(4 * DDY21);
+					__m128i offsetDDY32ex = _mm_set1_epi32(4 * DDY32);
+					__m128i offsetDDY13ex = _mm_set1_epi32(4 * DDY13);
+
+					__m128i offsetDDX21 = _mm_set1_epi32(DDX21);
+					__m128i offsetDDX32 = _mm_set1_epi32(DDX32);
+					__m128i offsetDDX13 = _mm_set1_epi32(DDX13);
+
+					
+					for (int k = 0; k < blockSize; ++k)
+					{
+						// First 4 pixels
+						__m128i E1 = _mm_add_epi32(B1, offsetDDY21);
+						__m128i E2 = _mm_add_epi32(B2, offsetDDY32);
+						__m128i E3 = _mm_add_epi32(B3, offsetDDY13);
+
+						__m128i xm1 = _mm_cmpgt_epi32(E1, _mm_setzero_si128());
+						__m128i xm2 = _mm_cmpgt_epi32(E2, _mm_setzero_si128());
+						__m128i xm3 = _mm_cmpgt_epi32(E3, _mm_setzero_si128());
+
+						__m128i xm = _mm_and_si128(xm1, _mm_and_si128(xm2, xm3));
+
+
+						int im = _mm_movemask_ps(*(__m128*)&xm);
+
+						if (0 != im)
+						{
+							Toy_Fragment frag;
+							frag.x = x;
+							frag.y = y + k;
+							frag.faceID = tf.id;
+							frag.mask = im;
+							frag.coverType = FC_FRAGMENT;
+							tile.aFragment.push_back(frag);
+						}
+
+						// Second 4 pixels
+
+						E1 = _mm_add_epi32(E1, offsetDDY21ex);
+						E2 = _mm_add_epi32(E2, offsetDDY32ex);
+						E3 = _mm_add_epi32(E3, offsetDDY13ex);
+
+						xm1 = _mm_cmpgt_epi32(E1, _mm_setzero_si128());
+						xm2 = _mm_cmpgt_epi32(E2, _mm_setzero_si128());
+						xm3 = _mm_cmpgt_epi32(E3, _mm_setzero_si128());
+
+						xm = _mm_and_si128(xm1, _mm_and_si128(xm2, xm3));
+
+						im = _mm_movemask_ps(*(__m128*)&xm);
+
+						if (0 != im)
+						{
+							Toy_Fragment frag;
+							frag.x = x + 4;
+							frag.y = y + k;
+							frag.faceID = tf.id;
+							frag.mask = im;
+							frag.coverType = FC_FRAGMENT;
+							tile.aFragment.push_back(frag);
+						}
+						B1 = _mm_sub_epi32(B1, offsetDDX21);
+						B2 = _mm_sub_epi32(B2, offsetDDX32);
+						B3 = _mm_sub_epi32(B3, offsetDDX13);
+					}
+				}
+			}
+
+
+		}
+	}
+}
+
+void ToyRender::RenderFragments()
+{
+	for (auto& tile : m_aTile)
+	{
+		for (auto& frag : tile.aFragment)
+		{
+			switch (frag.coverType)
+			{
+			case FC_TILE:
+				RenderTileFragments(&frag);
+				break;
+			case FC_BLOCK:
+				RenderBlockFragments(&frag);
+				break;
+			case FC_FRAGMENT:
+				RenderMaskedFragments(&frag);
+				break;
+			default:
+				break;
+			}
+		}
+	}
+}
+
+void ToyRender::RenderTileFragments(Toy_Fragment *frag)
+{
+	__m128 W0, W1, WDY;
+	__m128 V0[VARYINGS_NUM], V1[VARYINGS_NUM], VDY[VARYINGS_NUM];
+	__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
+	__m128 C1 = _mm_set_ps1(4.0f);
+
+	Toy_TransformedFace *f = &faceBuffer[frag->faceID];
+	
+	float *depthBuffer = nullptr;
+	uint32_t *colorBuffer = nullptr;
+	
+	for (int x = frag->x; x < frag->x + TILE_SIZE; x += BLOCK_SIZE)
+	{
+		colorBuffer = (uint32_t*)mRT.back_buffer->pixels	+ frag->y * mRT.back_buffer->w + x;
+		depthBuffer = (float*)mRT.z_buffer->pixels			+ frag->y * mRT.z_buffer->w + x;
+		
+		for (int y = frag->y; y < frag->y + TILE_SIZE; ++y)
+		{
+			CalcVaryings(f, x, y, W0, W1, WDY, V0, V1, VDY);
+			SSE_ALIGN PS_PARAM ps_param;
+			ps_param.uniforms = &mRC.globals;
+			__m128	dbquad;
+			__m128i dbmask, oquad, nquad;
+			uint32_t	*colorTileLine = colorBuffer;
+			float		*depthTileLine = depthBuffer;
+			
+			dbquad	= _mm_loadu_ps(depthTileLine);
+			oquad	= _mm_loadu_si128((__m128i*)colorTileLine);
+
+			// Depth test
+			dbmask = *(__m128i*)&_mm_cmpge_ps(W0, dbquad);
+
+			// If At Least 1 Pixels Passed Test.
+			if (_mm_movemask_ps(*(__m128*)&dbmask))
+			{
+				PreInterpolateVaryings(W0, V0, ps_param.Varyings);
+				mRC.fs(&ps_param);
+
+				nquad = ConvertColorFormat(ps_param.Output);
+
+				// Update Depth Buffer!
+				dbquad = _mm_or_ps(_mm_and_ps(W0, *(__m128*)&dbmask), _mm_andnot_ps(*(__m128*)&dbmask, dbquad));
+				_mm_storeu_ps(depthTileLine, dbquad);
+
+				nquad = _mm_or_si128(_mm_and_si128(dbmask, nquad), _mm_andnot_si128(dbmask, oquad));
+				_mm_storeu_si128((__m128i*)colorTileLine, nquad);
+			}
+
+			colorTileLine += 4;
+			depthTileLine += 4;
+
+			dbquad = _mm_loadu_ps(depthTileLine);
+			oquad = _mm_loadu_si128((__m128i*)colorTileLine);
+
+			dbmask = *(__m128i*)&_mm_cmpge_ps(W1, dbquad);
+
+			if (_mm_movemask_ps(*(__m128*)&dbmask))
+			{
+				PreInterpolateVaryings(W1, V1, ps_param.Varyings);
+
+				mRC.fs(&ps_param);
+
+				nquad = ConvertColorFormat(ps_param.Output);
+
+				// Update Depth Buffer!
+				dbquad = _mm_or_ps(_mm_and_ps(W1, *(__m128*)&dbmask), _mm_andnot_ps(*(__m128*)&dbmask, dbquad));
+				_mm_storeu_ps(depthTileLine, dbquad);
+
+				nquad = _mm_or_si128(_mm_and_si128(dbmask, nquad), _mm_andnot_si128(dbmask, oquad));
+				_mm_storeu_si128((__m128i*)colorTileLine, nquad);
+			}
+
+			colorBuffer += mRT.back_buffer->w;
+			depthBuffer += mRT.z_buffer->w;
+
+			IncVaryingsAlongY(W0, W1, WDY, V0, V1, VDY);
+		}
+	}
+}
+
+void ToyRender::RenderBlockFragments(Toy_Fragment *frag)
+{
+	__m128 W0, W1, WDY;
+	__m128 V0[VARYINGS_NUM], V1[VARYINGS_NUM], VDY[VARYINGS_NUM];
+	__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
+	__m128 C1 = _mm_set_ps1(4.0f);
+
+	Toy_TransformedFace *f = &faceBuffer[frag->faceID];
+
+	float *depthBuffer = (float*)mRT.z_buffer->pixels + mRT.z_buffer->w * frag->y + frag->x;
+	uint32_t *colorBuffer = (uint32_t *)mRT.back_buffer->pixels + mRT.back_buffer->w * frag->y + frag->x;
+
+	for (int y = frag->y; y < frag->y + BLOCK_SIZE; ++y)
+	{
+		CalcVaryings(f, frag->x, y, W0, W1, WDY, V0, V1, VDY);
+		SSE_ALIGN PS_PARAM ps_param;
+		ps_param.uniforms = &mRC.globals;
+		__m128	dbquad;
+		__m128i dbmask, oquad, nquad;
+		uint32_t	*colorTileLine = colorBuffer;
+		float		*depthTileLine = depthBuffer;
+
+		dbquad = _mm_loadu_ps(depthTileLine);
+		oquad = _mm_loadu_si128((__m128i*)colorTileLine);
+
+		// Depth test
+		dbmask = *(__m128i*)&_mm_cmpge_ps(W0, dbquad);
+
+		// If At Least 1 Pixels Passed Test.
+		if (_mm_movemask_ps(*(__m128*)&dbmask))
+		{
+			PreInterpolateVaryings(W0, V0, ps_param.Varyings);
+			mRC.fs(&ps_param);
+			
+			nquad = ConvertColorFormat(ps_param.Output);
+
+			// Update Depth Buffer!
+			dbquad = _mm_or_ps(_mm_and_ps(W0, *(__m128*)&dbmask), _mm_andnot_ps(*(__m128*)&dbmask, dbquad));
+			_mm_storeu_ps(depthTileLine, dbquad);
+
+			nquad = _mm_or_si128(_mm_and_si128(dbmask, nquad), _mm_andnot_si128(dbmask, oquad));
+			_mm_storeu_si128((__m128i*)colorTileLine, nquad);
+		}
+		
+		colorTileLine += 4;
+		depthTileLine += 4;
+
+		dbquad = _mm_loadu_ps(depthTileLine);
+		oquad = _mm_loadu_si128((__m128i*)colorTileLine);
+
+		dbmask = *(__m128i*)&_mm_cmpge_ps(W1, dbquad);
+
+		if (_mm_movemask_ps(*(__m128*)&dbmask))
+		{
+			PreInterpolateVaryings(W1, V1, ps_param.Varyings);
+
+			mRC.fs(&ps_param);
+
+			nquad = ConvertColorFormat(ps_param.Output);
+
+			// Update Depth Buffer!
+			dbquad = _mm_or_ps(_mm_and_ps(W1, *(__m128*)&dbmask), _mm_andnot_ps(*(__m128*)&dbmask, dbquad));
+			_mm_storeu_ps(depthTileLine, dbquad);
+
+			nquad = _mm_or_si128(_mm_and_si128(dbmask, nquad), _mm_andnot_si128(dbmask, oquad));
+			_mm_storeu_si128((__m128i*)colorTileLine, nquad);
+		}
+
+		colorBuffer += mRT.back_buffer->w;
+		depthBuffer += mRT.z_buffer->w;
+
+		IncVaryingsAlongY(W0, W1, WDY, V0, V1, VDY);
+	}
+}
+
+void ToyRender::PreInterpolateVaryings(__m128 &W, __m128 *iV, SSE_Float *oV)
+{
+	__m128 w = _mm_rcp_ps(W);
+	for (int i = 0; i < VARYINGS_NUM; ++i)
+		oV[i] = _mm_mul_ps(w, iV[i]);
+}
+
+void ToyRender::DrawTileGrid()
+{
+	int iWidth = mRT.back_buffer->w;
+	int iHeight = mRT.back_buffer->h;
+
+	uint32_t gridColor = ToyColor(1.0f, 1.0f, 1.0f).ToUInt32();
+
+	//Draw Vertical Lines
+	for (int x = 0; x < iWidth; x += TILE_SIZE)
+		Draw2DLines(x, 0, x, iHeight - 1, gridColor);
+	//Draw Horizontal Lines
+	for (int y = 0; y < iHeight; y += TILE_SIZE)
+		Draw2DLines(0, y, iWidth - 1, y, gridColor);
+}
+
+void ToyRender::RenderMaskedFragments(Toy_Fragment *frag)
+{
+	__m128 W0, W1, WDY;
+	__m128 V0[VARYINGS_NUM], V1[VARYINGS_NUM], VDY[VARYINGS_NUM];
+	__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
+	__m128 C1 = _mm_set_ps1(4.0f);
+	__m128i iMask = _mm_set_epi32(8, 4, 2, 1);
+
+	Toy_TransformedFace *f = &faceBuffer[frag->faceID];
+
+	float *depthBuffer = (float*)mRT.z_buffer->pixels + mRT.z_buffer->w * frag->y + frag->x;
+	uint32_t *colorBuffer = (uint32_t *)mRT.back_buffer->pixels + mRT.back_buffer->w * frag->y + frag->x;
+
+	CalcVaryings(f, frag->x, frag->y, W0, W1, WDY, V0, V1, VDY);
+
+	SSE_ALIGN PS_PARAM ps_param;
+	ps_param.uniforms = &mRC.globals;
+	
+	__m128	dbquad;
+	__m128i cbmask,dbmask, oquad, nquad;
+	uint32_t	*colorTileLine = colorBuffer;
+	float		*depthTileLine = depthBuffer;
+
+	dbquad = _mm_loadu_ps(depthTileLine);
+	oquad = _mm_loadu_si128((__m128i*)colorTileLine);
+
+	cbmask = _mm_cmpgt_epi32(_mm_and_si128(_mm_set1_epi32(frag->mask), iMask),_mm_setzero_si128());
+
+	// Depth test
+	dbmask = *(__m128i*)&_mm_cmpge_ps(W0, dbquad);
+
+	dbmask = _mm_and_si128(dbmask, cbmask);
+	// If At Least 1 Pixels Passed Test.
+	if (_mm_movemask_ps(*(__m128*)&dbmask))
+	{
+		PreInterpolateVaryings(W0, V0, ps_param.Varyings);
+		mRC.fs(&ps_param);
+
+		nquad = ConvertColorFormat(ps_param.Output);
+
+		// Update Depth Buffer!
+		dbquad = _mm_or_ps(_mm_and_ps(W0, *(__m128*)&dbmask), _mm_andnot_ps(*(__m128*)&dbmask, dbquad));
+		_mm_storeu_ps(depthTileLine, dbquad);
+
+		nquad = _mm_or_si128(_mm_and_si128(dbmask, nquad), _mm_andnot_si128(dbmask, oquad));
+		_mm_storeu_si128((__m128i*)colorTileLine, nquad);
+	}
+}
+
+
 

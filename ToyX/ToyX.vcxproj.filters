@@ -51,6 +51,9 @@
     <ClInclude Include="SSE_Math.h">
       <Filter>ToyMath</Filter>
     </ClInclude>
+    <ClInclude Include="ToyTypes.h">
+      <Filter>ToyRender</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
