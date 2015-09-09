@@ -102,7 +102,7 @@ private:
 	
 	// Process Vertex!
 	void ProcessV();
-	void GetTransformedVertex(uint32_t in, Arti3DTransformedVertex *out);
+	void GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DTransformedVertex *out);
 	void PostProcessV(Arti3DTransformedVertex *v);
 
 	// Clipping Functions!

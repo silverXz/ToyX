@@ -3,12 +3,18 @@
 #include <xmmintrin.h>
 #include <smmintrin.h>
 #include "SSE_Math.h"
+#include "ToyMath.h"
+
+
+
 
 #define SSE_ALIGN __declspec(align(16))
 
 struct Toy_Vertex;
 struct Arti3DTransformedVertex;
 struct GlobalUniforms;
+
+
 
 
 struct VS_PARAM

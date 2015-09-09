@@ -17,6 +17,7 @@ const int g_ciMaxVaryingNum = 12;
 const int g_ciMaxClipVertex = 9;
 const int g_ciMaxThreadNum = 8;
 const int g_ciMaxTextureUnit = 16;
+const int g_ciMaxVSRegister = 8;
 
 // If you want to change TILE_SIZE, remember to change TILE_SIZE_SHIFT as well.
 // TILE_SIZE = 1 << TILE_SIZE_SHIFT.
@@ -154,6 +155,7 @@ enum Arti3DResult {
 	ARTI3D_INVALID_PARAMETER,
 	ARTI3D_NULL_PARAMETER,
 	ARTI3D_INVALID_ENUM,
+	ARTI3D_INVALID_FORMAT,
 	ARTI3D_RANGE_EXCEED,
 	ARTI3D_VARYING_EXCEED,
 	ARTI3D_OUT_OF_MEMORY
@@ -291,6 +293,17 @@ struct Toy3DVertexElement {
 struct UyVertexFormat
 {
 
+};
+
+typedef toy::vec4 ShaderRegister;
+
+struct Arti3DVSInput {
+	ShaderRegister ShaderInputs[g_ciMaxVSRegister];
+};
+
+struct Arti3DVSOutput {
+	ShaderRegister	vPosition;
+	float	Varyings[g_ciMaxVaryingNum];
 };
 
 

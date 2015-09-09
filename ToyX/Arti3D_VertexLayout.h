@@ -16,7 +16,9 @@ protected:
 public:
 
 	Arti3DResult	iGetAttributeNum(uint32_t *o_iAttribute);
-	Arti3DResult	iGetFloats(uint32_t *o_iFloat);
+
+	// Get Number Of Float In The Layout.
+	uint32_t		iGetFloats();
 
 
 private:

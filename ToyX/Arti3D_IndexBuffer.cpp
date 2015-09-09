@@ -48,3 +48,42 @@ Arti3DResult Arti3DIndexBuffer::GetPointer(uint32_t i_iOffset, void **o_pData)
 
 	return ARTI3D_OK;
 }
+
+Arti3DResult Arti3DIndexBuffer::GetVertexIndex(uint32_t i_iArrayIndex, uint32_t *o_pVertexIndex)
+{
+	switch (m_fmtFormat)
+	{
+	case ARTI3D_INDEX16:
+	{
+		if (i_iArrayIndex >= m_iLength / 2)
+			return ARTI3D_RANGE_EXCEED;
+		const uint16_t *pData = (uint16_t *)m_pData;
+		*o_pVertexIndex = *(pData + i_iArrayIndex);
+		return ARTI3D_OK;
+	}
+	case ARTI3D_INDEX32:
+	{
+		if (i_iArrayIndex >= m_iLength / 4)
+			return ARTI3D_RANGE_EXCEED;
+		const uint32_t *pData = (uint32_t*)m_pData;
+		*o_pVertexIndex = *(pData + i_iArrayIndex);
+		return ARTI3D_OK;
+	}
+	default:
+		return ARTI3D_INVALID_FORMAT;
+	}
+
+}
+
+uint32_t Arti3DIndexBuffer::iGetIndexNum()
+{
+	switch (m_fmtFormat)
+	{
+	case ARTI3D_INDEX16:
+		return m_iLength / 2;
+	case ARTI3D_INDEX32:
+		return m_iLength / 4;
+	default:
+		return 0;
+	}
+}

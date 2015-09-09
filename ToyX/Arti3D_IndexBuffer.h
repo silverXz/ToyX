@@ -16,11 +16,19 @@ protected:
 	
 
 public:
+	
+	
+	// Get The Length Of The Index Buffer In Bytes.
 	uint32_t iGetLength();
+
+	// Get The Number Of Index In The Index Buffer.
+	uint32_t iGetIndexNum();
 
 	Arti3DResult	GetPointer(uint32_t i_iOffset, void **o_pData);
 
 	Arti3DFormat	fmtGetFormat();
+
+	Arti3DResult	GetVertexIndex(uint32_t i_iArrayIndex, uint32_t *o_pVertexIndex);
 
 private:
 	char			*m_pData;

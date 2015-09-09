@@ -56,10 +56,7 @@ Arti3DResult Arti3DVertexLayout::iGetAttributeNum(uint32_t *o_iAttribute)
 	return ARTI3D_OK;
 }
 
-Arti3DResult Arti3DVertexLayout::iGetFloats(uint32_t *o_iFloat)
+uint32_t Arti3DVertexLayout::iGetFloats()
 {
-	if (!o_iFloat)
-		return ARTI3D_NULL_PARAMETER;
-	*o_iFloat = m_iFloats;
-	return ARTI3D_OK;
+	return m_iFloats;
 }

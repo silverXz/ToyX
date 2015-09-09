@@ -225,8 +225,7 @@ void Arti3DDevice::LoadCube()
 
 	Arti3DVertexBuffer *pVertexBuffer = nullptr;
 	
-	uint32_t iFloat = 0;
-	pVertexLayout->iGetFloats(&iFloat);
+	uint32_t iFloat = pVertexLayout->iGetFloats();
 	uint32_t iStride = iFloat * sizeof(float);
 	const uint32_t iVertex = 8;
 	CreateVertexBuffer(&pVertexBuffer, iVertex * iStride);
@@ -260,15 +259,6 @@ void Arti3DDevice::LoadCube()
 	memcpy(pDest, xid, sizeof(xid));
 
 	SetIndexBuffer(pIndexBuffer);
-
-	std::vector<uint32_t> tmp;
-	for (int i = 0; i < 36; ++i)
-	{
-		void *pDest = nullptr;
-		pIndexBuffer->GetPointer(i * sizeof(uint32_t), &pDest);
-		tmp.push_back(*(uint32_t*)pDest);
-	}
-
 }
 
 void Arti3DDevice::Begin()
@@ -317,23 +307,46 @@ void Arti3DDevice::UploadData(GeometryDataType gdt, void *ptr, uint32_t size)
 	}
 }
 
-void Arti3DDevice::GetTransformedVertex(uint32_t in, Arti3DTransformedVertex *out)
+void Arti3DDevice::GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DTransformedVertex *out)
 {
-	uint32_t cacheID = in&(g_ciCacheSize - 1);
-	if (vCache[cacheID].tag == in)
+	uint32_t iCacheIndex = i_iVertexIndex&(g_ciCacheSize - 1);
+	if (vCache[iCacheIndex].tag == i_iVertexIndex)
 	{
-		*out = *(vCache[cacheID].v);
+		*out = *(vCache[iCacheIndex].v);
 	}
 	else
 	{
+		Arti3DVSInput vsinput;
+
+		void *pSrc = nullptr;
+		m_pVertexBuffer->GetPointer(m_pVertexLayout->iGetFloats() * sizeof(float) * i_iVertexIndex, &pSrc);
+		float *pV = (float*)pSrc;
+		uint32_t iAttributeNum = 0;
+		m_pVertexLayout->iGetAttributeNum(&iAttributeNum);
+		for (int i = 0; i < iAttributeNum; ++i)
+		{
+			switch (m_pVertexLayout->m_pVertexAttributeFormat[i])
+			{
+			case ARTI3D_VAF_VECTOR4:
+				vsinput.ShaderInputs[i] = ShaderRegister(pV[0], pV[1], pV[2], pV[3]);	pV += 4;	break;
+			case ARTI3D_VAF_VECTOR3:
+				vsinput.ShaderInputs[i] = ShaderRegister(pV[0], pV[1], pV[2], 0.0f);	pV += 3;	break;
+			case ARTI3D_VAF_VECTOR2:
+				vsinput.ShaderInputs[i] = ShaderRegister(pV[0], pV[1], 0.0f, 0.0f);		pV += 2;	break;
+			case ARTI3D_VAF_FLOAT32:
+				vsinput.ShaderInputs[i] = ShaderRegister(pV[0]);						pV += 1;	break;
+			default:break;
+			}
+		}
+
 		VS_PARAM vs_param;
-		vs_param.v_in = &vBuffer.vBuffer[in];
-		vs_param.v_out = &tvBuffer[in];
+		vs_param.v_in = &vBuffer.vBuffer[i_iVertexIndex];
+		vs_param.v_out = &tvBuffer[i_iVertexIndex];
 		vs_param.uniforms = &mRC.globals;
 		mRC.vs(&vs_param);
-		vCache[cacheID].tag = in;
-		vCache[cacheID].v = vs_param.v_out;
-		*out = *(vCache[cacheID].v);
+		vCache[iCacheIndex].tag = i_iVertexIndex;
+		vCache[iCacheIndex].v = vs_param.v_out;
+		*out = *(vCache[iCacheIndex].v);
 	}
 }
 
@@ -362,16 +375,31 @@ void Arti3DDevice::ProcessV_WithClip()
 	faceBuffer.clear();
 	ClearCache();
 
-	for (int i = 0; i < iBuffer.size; i += 3)
+	uint32_t iIndexNum = m_pIndexBuffer->iGetIndexNum();
+
+	for (int i = 0; i < iIndexNum; i += 3)
 	{
-		// For every face, get transformed vertex. 
-		// Clipping may happen that new vertex is introduced.
-		// The maximum vertex number clipping may produces is 
 		Arti3DTransformedVertex v[g_ciMaxClipVertex];
+
 		for (int j = 0; j < 3; ++j)
-			GetTransformedVertex(iBuffer.iBuffer[i + j], &v[j]);
+		{
+			uint32_t iVertexIndex = 0;
+			m_pIndexBuffer->GetVertexIndex(i + j, &iVertexIndex);
+			GetTransformedVertex(iVertexIndex, &v[j]);
+		}
 		ClipTriangle(&v[0], &v[1], &v[2]);
 	}
+
+// 	for (int i = 0; i < iBuffer.size; i += 3)
+// 	{
+// 		// For every face, get transformed vertex. 
+// 		// Clipping may happen that new vertex is introduced.
+// 		// The maximum vertex number clipping may produces is 
+// 		Arti3DTransformedVertex v[g_ciMaxClipVertex];
+// 		for (int j = 0; j < 3; ++j)
+// 			GetTransformedVertex(iBuffer.iBuffer[i + j], &v[j]);
+// 		ClipTriangle(&v[0], &v[1], &v[2]);
+// 	}
 }
 
 void Arti3DDevice::ClipTriangle(Arti3DTransformedVertex *v1, Arti3DTransformedVertex *v2, Arti3DTransformedVertex *v3)
