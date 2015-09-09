@@ -1,10 +1,12 @@
 c:\users\dell\documents\github\toyx\toyx\release\toyx.pch
 c:\users\dell\documents\github\toyx\toyx\release\vc120.pdb
 c:\users\dell\documents\github\toyx\toyx\release\stdafx.obj
-c:\users\dell\documents\github\toyx\toyx\release\toyx.obj
-c:\users\dell\documents\github\toyx\toyx\release\toyrender.obj
+c:\users\dell\documents\github\toyx\toyx\release\arti3d_device.obj
 c:\users\dell\documents\github\toyx\toyx\release\sse_math.obj
 c:\users\dell\documents\github\toyx\toyx\release\shader.obj
+c:\users\dell\documents\github\toyx\toyx\release\arti3d_vertexbuffer.obj
+c:\users\dell\documents\github\toyx\toyx\release\toyx.obj
+c:\users\dell\documents\github\toyx\toyx\release\arti3d_vertexlayout.obj
 c:\users\dell\documents\github\toyx\release\toyx.exe
 c:\users\dell\documents\github\toyx\release\toyx.pdb
 c:\users\dell\documents\github\toyx\toyx\release\toyx.tlog\cl.command.1.tlog

@@ -1,38 +1,75 @@
 #include "stdafx.h"
-#include "ToyRender.h"
+#include "Arti3D_Device.h"
 #include <algorithm>
 #include <cstdlib>
 #include <assert.h>
 #include <xmmintrin.h>
 #include <smmintrin.h>
+#include "Arti3D_VertexLayout.h"
+#include "Arti3D_VertexBuffer.h"
+#include "Arti3D_IndexBuffer.h"
+
 
 using namespace toy;
 
-ToyRender::ToyRender()
+Arti3DDevice::Arti3DDevice() : m_pIndexBuffer(nullptr),
+	m_pVertexBuffer(nullptr),
+	m_pVertexLayout(nullptr),
+	m_iThreadNum(g_ciMaxThreadNum),
+	m_iWorkingThreadNum(0),
+	m_ppVertexCache(nullptr),
+	m_ppTransformedVertex(nullptr),
+	m_ppTransformedFace(nullptr),
+	m_pTiles(nullptr)
 {
 	dFile.open("Debug.txt", std::ios::ate);
 }
 
-ToyRender::~ToyRender()
+Arti3DDevice::~Arti3DDevice()
 {
 	dFile.close();
+
+	SAFE_DELETE(m_pIndexBuffer);
+	SAFE_DELETE(m_pVertexBuffer);
+	SAFE_DELETE(m_pVertexLayout);
+
+	if (m_ppVertexCache)
+	{
+		for (uint32_t i = 0; i < m_iThreadNum; ++i)
+			SAFE_DELETE_ARRAY(m_ppVertexCache[i]);
+		SAFE_DELETE_ARRAY(m_ppVertexCache);
+	}
+
+	if (m_ppTransformedVertex)
+	{
+		for (uint32_t i = 0; i < m_iThreadNum; ++i)
+			SAFE_DELETE_ARRAY(m_ppTransformedVertex[i]);
+		SAFE_DELETE_ARRAY(m_ppTransformedVertex);
+	}
+
+	if (m_ppTransformedFace)
+	{
+		for (uint32_t i = 0; i < m_iThreadNum; ++i)
+			SAFE_DELETE_ARRAY(m_ppTransformedFace[i]);
+		SAFE_DELETE_ARRAY(m_ppTransformedFace);
+	}
 }
 
 
 
-void ToyRender::ClearColorBuffer(const ToyColor& color)
+void Arti3DDevice::ClearColorBuffer(const ToyColor& color)
 {
 	int hr = SDL_FillRect(mRT.back_buffer, nullptr, color.ToUInt32());
 	if (hr)
 		std::cerr << "Failed to clear color buffer!\n";
 }
 
-void ToyRender::ClearDepthBuffer(float cDepth)
+void Arti3DDevice::ClearDepthBuffer(float cDepth)
 {
 	SDL_FillRect(mRT.z_buffer, nullptr, 0);
 }
 
-void ToyRender::SetMatrix(MatrixType matrixType, const toy::mat4& m)
+void Arti3DDevice::SetMatrix(Arti3DMatrixType matrixType, const toy::mat4& m)
 {
 	GlobalUniforms &rgu = mRC.globals;
 	switch (matrixType)
@@ -52,12 +89,12 @@ void ToyRender::SetMatrix(MatrixType matrixType, const toy::mat4& m)
 	rgu.mvp = rgu.projection * rgu.view * rgu.model;
 }
 
-void ToyRender::SetViewport(int x, int y, int width, int height)
+void Arti3DDevice::SetViewport(int x, int y, int width, int height)
 {
 	mRC.globals.viewport = vec4(FLOAT_CAST(x),FLOAT_CAST(y), FLOAT_CAST(width), FLOAT_CAST(height));
 }
 
-void ToyRender::Draw2DLines(int x1, int y1, int x2, int y2, uint32_t color)
+void Arti3DDevice::Draw2DLines(int x1, int y1, int x2, int y2, uint32_t color)
 {
 	int dy = abs(y2 - y1);
 	int dx = abs(x2 - x1);
@@ -98,7 +135,7 @@ void ToyRender::Draw2DLines(int x1, int y1, int x2, int y2, uint32_t color)
 	}
 }
 
-void ToyRender::Draw3DLines(const toy::vec4& p1, const toy::vec4 p2, uint32_t color)
+void Arti3DDevice::Draw3DLines(const toy::vec4& p1, const toy::vec4 p2, uint32_t color)
 {
 	vec4 clip1 = mRC.globals.mvp * p1;
 	vec4 clip2 = mRC.globals.mvp * p2;
@@ -115,7 +152,7 @@ void ToyRender::Draw3DLines(const toy::vec4& p1, const toy::vec4 p2, uint32_t co
 	Draw2DLines(clip1.x, clip1.y, clip2.x, clip2.y, color);
 }
 
-void ToyRender::Draw3DSolidTriangle(const toy::vec4& p1, const toy::vec4& p2, const toy::vec4& p3, const ToyColor& c)
+void Arti3DDevice::Draw3DSolidTriangle(const toy::vec4& p1, const toy::vec4& p2, const toy::vec4& p3, const ToyColor& c)
 {
 	vec4 clip1 = mRC.globals.mvp * p1;
 	vec4 clip2 = mRC.globals.mvp * p2;
@@ -144,7 +181,7 @@ void ToyRender::Draw3DSolidTriangle(const toy::vec4& p1, const toy::vec4& p2, co
 	clip3.y = mRT.back_buffer->h - (clip3.y + 1.0f) * half_height;	
 }
 
-void ToyRender::LoadCube()
+void Arti3DDevice::LoadCube()
 {
 	const float len = 2.0f;
 	Toy_Vertex v[8];
@@ -179,9 +216,62 @@ void ToyRender::LoadCube()
 	uint32_t indices[] = { 0,1,2,0,2,3,0,4,5,0,5,1,1,5,6,1,6,2,4,7,6,4,6,5,0,3,7,0,7,4,3,2,6,3,6,7};
 	//uint32_t indices[] = { 0,1,2,0,5,1,1,5,2 };
 	UploadData(GEOMETRY_INDICE, indices, sizeof(indices));
+
+
+	Arti3DVertexLayout *pVertexLayout = nullptr;
+	Arti3DVertexAttributeFormat vaf[] = { ARTI3D_VAF_VECTOR4, ARTI3D_VAF_VECTOR4 };
+	CreateVertexLayout(&pVertexLayout, 2, vaf);
+	SetVertexLayout(pVertexLayout);
+
+	Arti3DVertexBuffer *pVertexBuffer = nullptr;
+	
+	uint32_t iFloat = 0;
+	pVertexLayout->iGetFloats(&iFloat);
+	uint32_t iStride = iFloat * sizeof(float);
+	const uint32_t iVertex = 8;
+	CreateVertexBuffer(&pVertexBuffer, iVertex * iStride);
+
+	// Upload Cube Data To VertexBuffer
+	std::vector<std::vector<float>> xv{
+		{ -len, len, len, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f},
+		{ len, len, len, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f },
+		{ len, len, -len, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f },
+		{ -len, len, -len, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f },
+		{ -len, -len, len, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+		{ len, -len, len, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f },
+		{ len, -len, -len, 1.0f,1.0f, 1.0f, 1.0f, 0.0f },
+		{ -len, -len, -len, 1.0f,0.0f, 0.0f, 0.0f, 1.0f }
+	};
+
+	for (int i = 0; i < iVertex; ++i)
+	{
+		void *pDest = nullptr;
+		pVertexBuffer->GetPointer(i * iStride, &pDest);
+		memcpy(pDest, &xv[i][0], iStride);
+	}
+
+	SetVertexBuffer(pVertexBuffer);
+
+	Arti3DIndexBuffer *pIndexBuffer = nullptr;
+	CreateIndexBuffer(&pIndexBuffer, 36 * sizeof(uint32_t), ARTI3D_INDEX32);
+	uint32_t xid[] = { 0, 1, 2, 0, 2, 3, 0, 4, 5, 0, 5, 1, 1, 5, 6, 1, 6, 2, 4, 7, 6, 4, 6, 5, 0, 3, 7, 0, 7, 4, 3, 2, 6, 3, 6, 7 };
+	void *pDest = nullptr;
+	pIndexBuffer->GetPointer(0, &pDest);
+	memcpy(pDest, xid, sizeof(xid));
+
+	SetIndexBuffer(pIndexBuffer);
+
+	std::vector<uint32_t> tmp;
+	for (int i = 0; i < 36; ++i)
+	{
+		void *pDest = nullptr;
+		pIndexBuffer->GetPointer(i * sizeof(uint32_t), &pDest);
+		tmp.push_back(*(uint32_t*)pDest);
+	}
+
 }
 
-void ToyRender::Begin()
+void Arti3DDevice::Begin()
 {
 	if (!mRT.back_buffer)
 	{
@@ -189,21 +279,22 @@ void ToyRender::Begin()
 		return;
 	}
 	SDL_LockSurface(mRT.back_buffer);
+
 }
 
-void ToyRender::End()
+void Arti3DDevice::End()
 {
 	SDL_UnlockSurface(mRT.back_buffer);
 }
 
-void ToyRender::SetRenderTarget(const RenderTarget &rRT)
+void Arti3DDevice::SetRenderTarget(const RenderTarget &rRT)
 {
 	mRT = rRT;
 	InitTile();
 }
 
 
-void ToyRender::UploadData(GeometryDataType gdt, void *ptr, uint32_t size)
+void Arti3DDevice::UploadData(GeometryDataType gdt, void *ptr, uint32_t size)
 {
 	if (!ptr)
 	{
@@ -226,9 +317,9 @@ void ToyRender::UploadData(GeometryDataType gdt, void *ptr, uint32_t size)
 	}
 }
 
-void ToyRender::TransformVertex(uint32_t in, Toy_TransformedVertex *out)
+void Arti3DDevice::GetTransformedVertex(uint32_t in, Arti3DTransformedVertex *out)
 {
-	uint32_t cacheID = in&(CACHE_SIZE - 1);
+	uint32_t cacheID = in&(g_ciCacheSize - 1);
 	if (vCache[cacheID].tag == in)
 	{
 		*out = *(vCache[cacheID].v);
@@ -246,7 +337,7 @@ void ToyRender::TransformVertex(uint32_t in, Toy_TransformedVertex *out)
 	}
 }
 
-void ToyRender::ProcessV()
+void Arti3DDevice::ProcessV()
 {
 	faceBuffer.clear();
 	ClearCache();
@@ -256,17 +347,17 @@ void ToyRender::ProcessV()
 		// For every face, get transformed vertex. 
 		// Clipping may happen that new vertex is introduced.
 		// The maximum vertex number clipping may produces is 
-		Toy_TransformedVertex v[CLIP_VERTEX_MAX];
+		Arti3DTransformedVertex v[g_ciMaxClipVertex];
 		for (int j = 0; j < 3; ++j)
 		{
-			TransformVertex(iBuffer.iBuffer[i + j], &v[j]);
+			GetTransformedVertex(iBuffer.iBuffer[i + j], &v[j]);
 			PostProcessV(&v[j]);
 		}
 		InsertTransformedFace(&v[0], &v[1], &v[2]);
 	}
 }
 
-void ToyRender::ProcessV_WithClip()
+void Arti3DDevice::ProcessV_WithClip()
 {
 	faceBuffer.clear();
 	ClearCache();
@@ -276,17 +367,17 @@ void ToyRender::ProcessV_WithClip()
 		// For every face, get transformed vertex. 
 		// Clipping may happen that new vertex is introduced.
 		// The maximum vertex number clipping may produces is 
-		Toy_TransformedVertex v[CLIP_VERTEX_MAX];
+		Arti3DTransformedVertex v[g_ciMaxClipVertex];
 		for (int j = 0; j < 3; ++j)
-			TransformVertex(iBuffer.iBuffer[i + j], &v[j]);
+			GetTransformedVertex(iBuffer.iBuffer[i + j], &v[j]);
 		ClipTriangle(&v[0], &v[1], &v[2]);
 	}
 }
 
-void ToyRender::ClipTriangle(Toy_TransformedVertex *v1, Toy_TransformedVertex *v2, Toy_TransformedVertex *v3)
+void Arti3DDevice::ClipTriangle(Arti3DTransformedVertex *v1, Arti3DTransformedVertex *v2, Arti3DTransformedVertex *v3)
 {
 
-	auto calcClipMask = [](Toy_TransformedVertex *v) {
+	auto calcClipMask = [](Arti3DTransformedVertex *v) {
 		int mask = 0;
 		if (v->p.x - v->p.w > 0) mask |= CLIP_POS_X;
 		if (v->p.x + v->p.w < 0) mask |= CLIP_NEG_X;
@@ -322,7 +413,7 @@ void ToyRender::ClipTriangle(Toy_TransformedVertex *v1, Toy_TransformedVertex *v
 		{0.0f,0.0f,1.0f,0.0f}	// NEG_Z_PLANE ( pointing at +z )
 	};
 
-	ClipMask mk[6] = {
+	Arti3DClipMask mk[6] = {
 		CLIP_POS_X,
 		CLIP_NEG_X,
 		CLIP_POS_Y,
@@ -332,8 +423,8 @@ void ToyRender::ClipTriangle(Toy_TransformedVertex *v1, Toy_TransformedVertex *v
 	};
 
 	// We need 2 index array ( with size CLIP_VERTEX_MAX ) to do ping pong buffering.
-	Toy_TransformedVertex *v = v1;
-	uint32_t inout[2][CLIP_VERTEX_MAX];
+	Arti3DTransformedVertex *v = v1;
+	uint32_t inout[2][g_ciMaxClipVertex];
 	uint32_t *in = inout[0], *out = inout[1];
 	in[0] = 0;	in[1] = 1; in[2] = 2;
 
@@ -344,18 +435,18 @@ void ToyRender::ClipTriangle(Toy_TransformedVertex *v1, Toy_TransformedVertex *v
 	// Several lambda expression to help!
 
 	// Calculate the signed distance between a vertex and a plane.
-	auto calcPointPlaneDistance = [](const Toy_Plane *p, const Toy_TransformedVertex *v) { 	return p->x * v->p.x + p->y * v->p.y + p->z * v->p.z + p->d * v->p.w;};
+	auto calcPointPlaneDistance = [](const Toy_Plane *p, const Arti3DTransformedVertex *v) { 	return p->x * v->p.x + p->y * v->p.y + p->z * v->p.z + p->d * v->p.w;};
 
 	// Determine whether two floats has different signs.
 	auto hasDifferentSigns = [](float a, float b) { return (a >= 0.0f && b < 0.0f) || (a < 0.0f && b >= 0.0f);	};
 
 	// Interpolate Vertex Attributes
-	auto interpolateV = [](const Toy_TransformedVertex *v1, const Toy_TransformedVertex *v2, float t, Toy_TransformedVertex *out) {
+	auto interpolateV = [](const Arti3DTransformedVertex *v1, const Arti3DTransformedVertex *v2, float t, Arti3DTransformedVertex *out) {
 		out->p.x = v1->p.x + (v2->p.x - v1->p.x) * t;
 		out->p.y = v1->p.y + (v2->p.y - v1->p.y) * t;
 		out->p.z = v1->p.z + (v2->p.z - v1->p.z) * t;
 		out->p.w = v1->p.w + (v2->p.w - v1->p.w) * t;
-		for (int i = 0; i < VARYINGS_NUM; ++i)
+		for (int i = 0; i < g_ciMaxVaryingNum; ++i)
 			out->varyings[i] = v1->varyings[i] + (v2->varyings[i] - v1->varyings[i]) * t;
 	};
 
@@ -407,7 +498,7 @@ void ToyRender::ClipTriangle(Toy_TransformedVertex *v1, Toy_TransformedVertex *v
 
 	for (int i = 0; i < inCnt; ++i)
 	{
-		Toy_TransformedVertex *p = &v[in[i]];
+		Arti3DTransformedVertex *p = &v[in[i]];
 		PostProcessV(p);
 	}
 
@@ -415,15 +506,15 @@ void ToyRender::ClipTriangle(Toy_TransformedVertex *v1, Toy_TransformedVertex *v
 		InsertTransformedFace(&v[in[0]], &v[in[i]], &v[in[i + 1]]);
 }
 
-void ToyRender::InsertTransformedFace(Toy_TransformedVertex *v1, Toy_TransformedVertex *v2, Toy_TransformedVertex *v3)
+void Arti3DDevice::InsertTransformedFace(Arti3DTransformedVertex *v1, Arti3DTransformedVertex *v2, Arti3DTransformedVertex *v3)
 {
-	Toy_TransformedFace f;
+	Arti3DTransformedFace f;
 	
 	f.v0x = v1->p.x;
 	f.v0y = v1->p.y;
 	f.v0w = v1->p.w;
 
-	for (int i = 0; i < VARYINGS_NUM; ++i)
+	for (int i = 0; i < g_ciMaxVaryingNum; ++i)
 		f.v0v[i] = v1->varyings[i];
 	
 	f.fp1[0] = iRound(v1->p.x * 16.0f);
@@ -444,7 +535,7 @@ void ToyRender::InsertTransformedFace(Toy_TransformedVertex *v1, Toy_Transformed
 	float CS = fdx21 * fdy31 - fdx31 * fdy21;
 	ComputeGradient(CS, v2->p.w - v1->p.w, v3->p.w - v1->p.w, fdx21, fdy21, fdx31, fdy31, &f.dw);
 
-	for (int i = 0; i < VARYINGS_NUM; ++i)
+	for (int i = 0; i < g_ciMaxVaryingNum; ++i)
 	{
 		ComputeGradient(CS, v2->varyings[i] - v1->varyings[i], v3->varyings[i] - v1->varyings[i], fdx21, fdy21, fdx31, fdy31, &f.dv[i]);
 	}
@@ -452,7 +543,7 @@ void ToyRender::InsertTransformedFace(Toy_TransformedVertex *v1, Toy_Transformed
 	faceBuffer.push_back(f);
 }
 
-int ToyRender::CalcClipMask(Toy_TransformedVertex *v)
+int Arti3DDevice::CalcClipMask(Arti3DTransformedVertex *v)
 {
 	int mask = 0;
 	if (v->p.x - v->p.w > 0) mask |= CLIP_POS_X;
@@ -464,7 +555,7 @@ int ToyRender::CalcClipMask(Toy_TransformedVertex *v)
 	return mask;
 }
 
-void ToyRender::ProcessR()
+void Arti3DDevice::ProcessR()
 {
 	for (auto &i : faceBuffer)
 	{
@@ -472,7 +563,7 @@ void ToyRender::ProcessR()
 	}
 }
 
-void ToyRender::PostProcessV(Toy_TransformedVertex *v)
+void Arti3DDevice::PostProcessV(Arti3DTransformedVertex *v)
 {
 	float invW = 1.0f / v->p.w;
 	v->p.x *= invW;
@@ -483,13 +574,13 @@ void ToyRender::PostProcessV(Toy_TransformedVertex *v)
 	v->p.x = (v->p.x + 1.0f) * 0.5f * mRT.back_buffer->w;
 	v->p.y = mRT.back_buffer->h - (v->p.y + 1.0f)*0.5f *mRT.back_buffer->h;
 
-	for (int j = 0; j < VARYINGS_NUM; ++j)
+	for (int j = 0; j < g_ciMaxVaryingNum; ++j)
 	{
 		v->varyings[j] *= invW;
 	}
 }
 
-void ToyRender::DrawMesh()
+void Arti3DDevice::DrawMesh()
 {
 	ProcessV_WithClip();
 	
@@ -502,7 +593,7 @@ void ToyRender::DrawMesh()
 }
 
 
-void ToyRender::DrawMesh_TileBase()
+void Arti3DDevice::DrawMesh_TileBase()
 {
 	ProcessV_WithClip();
 
@@ -520,19 +611,19 @@ void ToyRender::DrawMesh_TileBase()
 }
 
 
-void ToyRender::SetVertexShader(VertexShader vs)
+void Arti3DDevice::SetVertexShader(VertexShader vs)
 {
 	mRC.vs = vs;
 }
 
 
-void ToyRender::SetFragmentShader(FragmentShader fs)
+void Arti3DDevice::SetFragmentShader(FragmentShader fs)
 {
 	mRC.fs = fs;
 }
 
 
-void ToyRender::ComputeGradient(float C, float di21, float di31, float dx21, float dy21, float dx31, float dy31, toy::vec2 *g)
+void Arti3DDevice::ComputeGradient(float C, float di21, float di31, float dx21, float dy21, float dx31, float dy31, toy::vec2 *g)
 {
 	float A = di21 * dy31 - di31 * dy21;
 	float B = di21 * dx31 - di31 * dx21;
@@ -540,16 +631,16 @@ void ToyRender::ComputeGradient(float C, float di21, float di31, float dx21, flo
 	g->y = -B / C;
 }
 
-void ToyRender::ClearCache()
+void Arti3DDevice::ClearCache()
 {
-	for (auto i = 0; i < CACHE_SIZE; ++i)
+	for (auto i = 0; i < g_ciCacheSize; ++i)
 	{
 		vCache[i].Clear();
 	}
 }
 
 
-void ToyRender::RasterizeTriangle_SIMD(Toy_TransformedFace *f)
+void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 {
 	int DX21 = f->fp2[0] - f->fp1[0];
 	int DY21 = f->fp2[1] - f->fp1[1];
@@ -636,7 +727,7 @@ void ToyRender::RasterizeTriangle_SIMD(Toy_TransformedFace *f)
 			if (a1 == 0xF && a2 == 0xF && a3 == 0xF)
 			{
 				__m128 W0, W1, WDY;
-				__m128 V0[VARYINGS_NUM], V1[VARYINGS_NUM], VDY[VARYINGS_NUM];
+				__m128 V0[g_ciMaxVaryingNum], V1[g_ciMaxVaryingNum], VDY[g_ciMaxVaryingNum];
 				__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
 				__m128 C1 = _mm_set_ps1(4.0f);
 				__m128 fMax = _mm_set_ps1(255.0f);
@@ -742,7 +833,7 @@ void ToyRender::RasterizeTriangle_SIMD(Toy_TransformedFace *f)
 			__m128i offsetDY13ex = _mm_set1_epi32(DDY13 * 4);
 
 			__m128 W0, W1, WDY;
-			__m128 V0[VARYINGS_NUM], V1[VARYINGS_NUM], VDY[VARYINGS_NUM];
+			__m128 V0[g_ciMaxVaryingNum], V1[g_ciMaxVaryingNum], VDY[g_ciMaxVaryingNum];
 
 			CalcVaryings(f, x, y, W0, W1, WDY, V0, V1, VDY);
 
@@ -782,7 +873,7 @@ void ToyRender::RasterizeTriangle_SIMD(Toy_TransformedFace *f)
 				if (_mm_movemask_ps(*(__m128*)&cMask))
 				{
 					__m128 w = _mm_rcp_ps(W0);
-					for (int f = 0; f < VARYINGS_NUM; f += 2)
+					for (int f = 0; f < g_ciMaxVaryingNum; f += 2)
 					{
 						parm.Varyings[f + 0] = _mm_mul_ps(w, V0[f + 0]);
 						parm.Varyings[f + 1] = _mm_mul_ps(w, V0[f + 1]);
@@ -826,7 +917,7 @@ void ToyRender::RasterizeTriangle_SIMD(Toy_TransformedFace *f)
 				{
 					// Calculate The 4 Pixels' Color And Update The Back Buffer According To The "cMask".
 					__m128 w = _mm_rcp_ps(W1);
-					for (int f = 0; f < VARYINGS_NUM; f += 2)
+					for (int f = 0; f < g_ciMaxVaryingNum; f += 2)
 					{
 						parm.Varyings[f + 0] = _mm_mul_ps(w, V1[f + 0]);
 						parm.Varyings[f + 1] = _mm_mul_ps(w, V1[f + 1]);
@@ -860,7 +951,7 @@ void ToyRender::RasterizeTriangle_SIMD(Toy_TransformedFace *f)
 	}
 }
 
-void ToyRender::CalcVaryings(Toy_TransformedFace* f, int x, int y, __m128 &W0, __m128 &W1, __m128 &WDY, __m128 *V0, __m128 *V1, __m128 *VDY)
+void Arti3DDevice::CalcVaryings(Arti3DTransformedFace* f, int x, int y, __m128 &W0, __m128 &W1, __m128 &WDY, __m128 *V0, __m128 *V1, __m128 *VDY)
 {
 	float xStep = x - f->v0x;
 	float yStep = y - f->v0y;
@@ -877,7 +968,7 @@ void ToyRender::CalcVaryings(Toy_TransformedFace* f, int x, int y, __m128 &W0, _
 
 	WDY = _mm_set_ps1(f->dw.y);
 
-	for (int i = 0; i < VARYINGS_NUM; ++i)
+	for (int i = 0; i < g_ciMaxVaryingNum; ++i)
 	{
 		base = _mm_set_ps1(f->v0v[i] + xStep * f->dv[i].x + yStep * f->dv[i].y);
 		dx = _mm_set_ps1(f->dv[i].x);
@@ -888,19 +979,19 @@ void ToyRender::CalcVaryings(Toy_TransformedFace* f, int x, int y, __m128 &W0, _
 	}
 }
 
-void ToyRender::IncVaryingsAlongY(__m128 &W0, __m128 &W1, __m128 WDY, __m128 *V0, __m128 *V1, __m128 *VDY)
+void Arti3DDevice::IncVaryingsAlongY(__m128 &W0, __m128 &W1, __m128 WDY, __m128 *V0, __m128 *V1, __m128 *VDY)
 {
 	W0 = _mm_add_ps(W0, WDY);
 	W1 = _mm_add_ps(W1, WDY);
 
-	for (int i = 0; i < VARYINGS_NUM; ++i)
+	for (int i = 0; i < g_ciMaxVaryingNum; ++i)
 	{
 		V0[i] = _mm_add_ps(V0[i], VDY[i]);
 		V1[i] = _mm_add_ps(V1[i], VDY[i]);
 	}
 }
 
-__m128i ToyRender::ConvertColorFormat(SSE_Color3 &src)
+__m128i Arti3DDevice::ConvertColorFormat(SSE_Color3 &src)
 {
 	__m128 fMax = _mm_set_ps1(255.0f);
 
@@ -918,13 +1009,13 @@ __m128i ToyRender::ConvertColorFormat(SSE_Color3 &src)
 	return _mm_or_si128(_mm_or_si128(iR, iG), iB);
 }
 
-void ToyRender::InitTile()
+void Arti3DDevice::InitTile()
 {
 	int iWidth = mRT.back_buffer->w;
 	int iHeight = mRT.back_buffer->h;
 
-	m_TileXCount = (iWidth + TILE_SIZE - 1) >> TILE_SIZE_SHIFT;
-	m_TileYCount = (iHeight + TILE_SIZE - 1) >> TILE_SIZE_SHIFT;
+	m_TileXCount = (iWidth + g_ciTileSize - 1) >> g_ciTileSizeShift;
+	m_TileYCount = (iHeight + g_ciTileSize - 1) >> g_ciTileSizeShift;
 
 	m_aTile.resize(m_TileXCount * m_TileYCount);
 
@@ -932,31 +1023,31 @@ void ToyRender::InitTile()
 	{
 		for (int x = 0; x < m_TileXCount; ++x)
 		{
-			Toy_Tile &tile = m_aTile[y * m_TileXCount + x];
-			tile.x = x * TILE_SIZE;
-			tile.y = y * TILE_SIZE;
+			Arti3D_Tile &tile = m_aTile[y * m_TileXCount + x];
+			tile.x = x * g_ciTileSize;
+			tile.y = y * g_ciTileSize;
 			if (x == m_TileXCount - 1)
 			{
-				int iExtraX = iWidth & (TILE_SIZE - 1);
-				tile.w = iExtraX ? iExtraX : TILE_SIZE;
+				int iExtraX = iWidth & (g_ciTileSize - 1);
+				tile.w = iExtraX ? iExtraX : g_ciTileSize;
 			}
 			else
-				tile.w = TILE_SIZE;
+				tile.w = g_ciTileSize;
 
 			if (y == m_TileYCount - 1)
 			{
-				int iExtraY = iHeight & (TILE_SIZE - 1);
-				tile.h = iExtraY ? iExtraY : TILE_SIZE;
+				int iExtraY = iHeight & (g_ciTileSize - 1);
+				tile.h = iExtraY ? iExtraY : g_ciTileSize;
 			}
 			else
-				tile.h = TILE_SIZE;
+				tile.h = g_ciTileSize;
 		}
 	}
 }
 
-void ToyRender::Tilize(uint32_t faceid)
+void Arti3DDevice::Tilize(uint32_t faceid)
 {
-	Toy_TransformedFace *f = &faceBuffer[faceid];
+	Arti3DTransformedFace *f = &faceBuffer[faceid];
 	int DX21 = f->fp2[0] - f->fp1[0];
 	int DY21 = f->fp2[1] - f->fp1[1];
 	int DX32 = f->fp3[0] - f->fp2[0];
@@ -995,10 +1086,10 @@ void ToyRender::Tilize(uint32_t faceid)
 	int ymax = std::max(std::max(f->fp1[1], f->fp2[1]), f->fp3[1]);
 
 	// Boundary Index For Tiles
-	int ixMinTile = ((xmin + 0xF) >> 4) >> TILE_SIZE_SHIFT;
-	int ixMaxTile = ((xmax + 0xF) >> 4) >> TILE_SIZE_SHIFT;
-	int iyMinTile = ((ymin + 0xF) >> 4) >> TILE_SIZE_SHIFT;
-	int iyMaxTile = ((ymax + 0xF) >> 4) >> TILE_SIZE_SHIFT;
+	int ixMinTile = ((xmin + 0xF) >> 4) >> g_ciTileSizeShift;
+	int ixMaxTile = ((xmax + 0xF) >> 4) >> g_ciTileSizeShift;
+	int iyMinTile = ((ymin + 0xF) >> 4) >> g_ciTileSizeShift;
+	int iyMaxTile = ((ymax + 0xF) >> 4) >> g_ciTileSizeShift;
 
 	// Tile[x][y]
 	ixMaxTile = ixMinTile >= m_TileXCount ? m_TileXCount - 1 : ixMaxTile;
@@ -1012,12 +1103,12 @@ void ToyRender::Tilize(uint32_t faceid)
 			// Get Tile Corner Fix Point Coordinate.
 			int iTile = y * m_TileXCount + x;
 
-			Toy_Tile &tile = m_aTile[iTile];
+			Arti3D_Tile &tile = m_aTile[iTile];
 
 			int x0 = tile.x << 4;
-			int x1 = (tile.x + TILE_SIZE - 1) << 4;
+			int x1 = (tile.x + g_ciTileSize - 1) << 4;
 			int y0 = tile.y << 4;
-			int y1 = (tile.y + TILE_SIZE - 1) << 4;
+			int y1 = (tile.y + g_ciTileSize - 1) << 4;
 
 			auto calcEdgeMask = [&](int C, int dy, int dx) {
 				bool m0 = (C + dy * x0 - dx * y0) > 0;
@@ -1039,16 +1130,16 @@ void ToyRender::Tilize(uint32_t faceid)
 			// Tile Completely Inside Triangle
 			if (a1 == 0xF && a2 == 0xF && a3 == 0xF)
 			{
-				if(tile.w == TILE_SIZE && tile.h == TILE_SIZE)
-					tile.aTilizedFace.push_back(Toy_TilizedFace{ faceid, TC_ALL });
+				if(tile.w == g_ciTileSize && tile.h == g_ciTileSize)
+					tile.aTilizedFace.push_back(Arti3D_TiledFace{ faceid, TC_ALL });
 			}
 			else
-				tile.aTilizedFace.push_back(Toy_TilizedFace{ faceid, TC_PARTIAL });
+				tile.aTilizedFace.push_back(Arti3D_TiledFace{ faceid, TC_PARTIAL });
 		}
 	}
 }
 
-void ToyRender::ClearTile()
+void Arti3DDevice::ClearTile()
 {
 	for (auto& x : m_aTile)
 	{
@@ -1057,19 +1148,19 @@ void ToyRender::ClearTile()
 	}
 }
 
-void ToyRender::RasterizeTile()
+void Arti3DDevice::RasterizeTile()
 {
 	for (int i = 0; i < m_aTile.size(); ++i)
 	{
-		Toy_Tile &tile = m_aTile[i];
+		Arti3D_Tile &tile = m_aTile[i];
 		for (int j = 0; j < tile.aTilizedFace.size(); ++j)
 		{
-			Toy_TilizedFace &tf = tile.aTilizedFace[j];
+			Arti3D_TiledFace &tf = tile.aTilizedFace[j];
 
 			// This Face is totally covering this tile.
 			if (tf.coverageType == TC_ALL)
 			{
-				Toy_Fragment frag;
+				Arti3D_Fragment frag;
 				frag.x = tile.x;
 				frag.y = tile.y;
 				frag.coverType = FC_TILE;
@@ -1079,7 +1170,7 @@ void ToyRender::RasterizeTile()
 			}
 			
 			// This face is partially covering this tile.
-			Toy_TransformedFace *f = &faceBuffer[tf.id];
+			Arti3DTransformedFace *f = &faceBuffer[tf.id];
 
 			int DX21 = f->fp2[0] - f->fp1[0];
 			int DY21 = f->fp2[1] - f->fp1[1];
@@ -1144,7 +1235,7 @@ void ToyRender::RasterizeTile()
 					// Block Totally Inside Triangle!
 					if (a1 == 0xF && a2 == 0xF && a3 == 0xF)
 					{
-						Toy_Fragment frag;
+						Arti3D_Fragment frag;
 						frag.x = x;
 						frag.y = y;
 						frag.coverType = FC_BLOCK;
@@ -1190,7 +1281,7 @@ void ToyRender::RasterizeTile()
 
 						if (0 != im)
 						{
-							Toy_Fragment frag;
+							Arti3D_Fragment frag;
 							frag.x = x;
 							frag.y = y + k;
 							frag.faceID = tf.id;
@@ -1215,7 +1306,7 @@ void ToyRender::RasterizeTile()
 
 						if (0 != im)
 						{
-							Toy_Fragment frag;
+							Arti3D_Fragment frag;
 							frag.x = x + 4;
 							frag.y = y + k;
 							frag.faceID = tf.id;
@@ -1235,7 +1326,7 @@ void ToyRender::RasterizeTile()
 	}
 }
 
-void ToyRender::RenderFragments()
+void Arti3DDevice::RenderFragments()
 {
 	for (auto& tile : m_aTile)
 	{
@@ -1259,24 +1350,24 @@ void ToyRender::RenderFragments()
 	}
 }
 
-void ToyRender::RenderTileFragments(Toy_Fragment *frag)
+void Arti3DDevice::RenderTileFragments(Arti3D_Fragment *frag)
 {
 	__m128 W0, W1, WDY;
-	__m128 V0[VARYINGS_NUM], V1[VARYINGS_NUM], VDY[VARYINGS_NUM];
+	__m128 V0[g_ciMaxVaryingNum], V1[g_ciMaxVaryingNum], VDY[g_ciMaxVaryingNum];
 	__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
 	__m128 C1 = _mm_set_ps1(4.0f);
 
-	Toy_TransformedFace *f = &faceBuffer[frag->faceID];
+	Arti3DTransformedFace *f = &faceBuffer[frag->faceID];
 	
 	float *depthBuffer = nullptr;
 	uint32_t *colorBuffer = nullptr;
 	
-	for (int x = frag->x; x < frag->x + TILE_SIZE; x += BLOCK_SIZE)
+	for (int x = frag->x; x < frag->x + g_ciTileSize; x += g_ciBlockSize)
 	{
 		colorBuffer = (uint32_t*)mRT.back_buffer->pixels	+ frag->y * mRT.back_buffer->w + x;
 		depthBuffer = (float*)mRT.z_buffer->pixels			+ frag->y * mRT.z_buffer->w + x;
 		
-		for (int y = frag->y; y < frag->y + TILE_SIZE; ++y)
+		for (int y = frag->y; y < frag->y + g_ciTileSize; ++y)
 		{
 			CalcVaryings(f, x, y, W0, W1, WDY, V0, V1, VDY);
 			SSE_ALIGN PS_PARAM ps_param;
@@ -1340,19 +1431,19 @@ void ToyRender::RenderTileFragments(Toy_Fragment *frag)
 	}
 }
 
-void ToyRender::RenderBlockFragments(Toy_Fragment *frag)
+void Arti3DDevice::RenderBlockFragments(Arti3D_Fragment *frag)
 {
 	__m128 W0, W1, WDY;
-	__m128 V0[VARYINGS_NUM], V1[VARYINGS_NUM], VDY[VARYINGS_NUM];
+	__m128 V0[g_ciMaxVaryingNum], V1[g_ciMaxVaryingNum], VDY[g_ciMaxVaryingNum];
 	__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
 	__m128 C1 = _mm_set_ps1(4.0f);
 
-	Toy_TransformedFace *f = &faceBuffer[frag->faceID];
+	Arti3DTransformedFace *f = &faceBuffer[frag->faceID];
 
 	float *depthBuffer = (float*)mRT.z_buffer->pixels + mRT.z_buffer->w * frag->y + frag->x;
 	uint32_t *colorBuffer = (uint32_t *)mRT.back_buffer->pixels + mRT.back_buffer->w * frag->y + frag->x;
 
-	for (int y = frag->y; y < frag->y + BLOCK_SIZE; ++y)
+	for (int y = frag->y; y < frag->y + g_ciBlockSize; ++y)
 	{
 		CalcVaryings(f, frag->x, y, W0, W1, WDY, V0, V1, VDY);
 		SSE_ALIGN PS_PARAM ps_param;
@@ -1415,14 +1506,14 @@ void ToyRender::RenderBlockFragments(Toy_Fragment *frag)
 	}
 }
 
-void ToyRender::PreInterpolateVaryings(__m128 &W, __m128 *iV, SSE_Float *oV)
+void Arti3DDevice::PreInterpolateVaryings(__m128 &W, __m128 *iV, SSE_Float *oV)
 {
 	__m128 w = _mm_rcp_ps(W);
-	for (int i = 0; i < VARYINGS_NUM; ++i)
+	for (int i = 0; i < g_ciMaxVaryingNum; ++i)
 		oV[i] = _mm_mul_ps(w, iV[i]);
 }
 
-void ToyRender::DrawTileGrid()
+void Arti3DDevice::DrawTileGrid()
 {
 	int iWidth = mRT.back_buffer->w;
 	int iHeight = mRT.back_buffer->h;
@@ -1430,22 +1521,22 @@ void ToyRender::DrawTileGrid()
 	uint32_t gridColor = ToyColor(1.0f, 1.0f, 1.0f).ToUInt32();
 
 	//Draw Vertical Lines
-	for (int x = 0; x < iWidth; x += TILE_SIZE)
+	for (int x = 0; x < iWidth; x += g_ciTileSize)
 		Draw2DLines(x, 0, x, iHeight - 1, gridColor);
 	//Draw Horizontal Lines
-	for (int y = 0; y < iHeight; y += TILE_SIZE)
+	for (int y = 0; y < iHeight; y += g_ciTileSize)
 		Draw2DLines(0, y, iWidth - 1, y, gridColor);
 }
 
-void ToyRender::RenderMaskedFragments(Toy_Fragment *frag)
+void Arti3DDevice::RenderMaskedFragments(Arti3D_Fragment *frag)
 {
 	__m128 W0, W1, WDY;
-	__m128 V0[VARYINGS_NUM], V1[VARYINGS_NUM], VDY[VARYINGS_NUM];
+	__m128 V0[g_ciMaxVaryingNum], V1[g_ciMaxVaryingNum], VDY[g_ciMaxVaryingNum];
 	__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
 	__m128 C1 = _mm_set_ps1(4.0f);
 	__m128i iMask = _mm_set_epi32(8, 4, 2, 1);
 
-	Toy_TransformedFace *f = &faceBuffer[frag->faceID];
+	Arti3DTransformedFace *f = &faceBuffer[frag->faceID];
 
 	float *depthBuffer = (float*)mRT.z_buffer->pixels + mRT.z_buffer->w * frag->y + frag->x;
 	uint32_t *colorBuffer = (uint32_t *)mRT.back_buffer->pixels + mRT.back_buffer->w * frag->y + frag->x;
@@ -1486,5 +1577,179 @@ void ToyRender::RenderMaskedFragments(Toy_Fragment *frag)
 	}
 }
 
+Arti3DResult Arti3DDevice::InitializeDevice(Arti3DDeviceParameter deviceParam)
+{
+	if (deviceParam.bMultiThread)
+		InitializeThreads();
+	return ARTI3D_OK;
+}
 
+void Arti3DDevice::ReleaseResource()
+{
+	if (m_pTiles)
+		delete m_pTiles, m_pTiles = nullptr;
+}
+
+void Arti3DDevice::IntiTileMT()
+{
+	int iWidth = mRT.back_buffer->w;
+	int iHeight = mRT.back_buffer->h;
+
+	m_TileXCount = (iWidth + g_ciTileSize - 1) >> g_ciTileSizeShift;
+	m_TileYCount = (iHeight + g_ciTileSize - 1) >> g_ciTileSizeShift;
+
+	m_pTiles = new Arti3D_Tile[m_TileYCount * m_TileXCount];
+
+	for (int y = 0; y < m_TileYCount; ++y)
+	{
+		for (int x = 0; x < m_TileXCount; ++x)
+		{
+			Arti3D_Tile &tile = m_pTiles[y * m_TileXCount + x];
+			tile.x = x * g_ciTileSize;
+			tile.y = y * g_ciTileSize;
+			if (x == m_TileXCount - 1)
+			{
+				int iExtraX = iWidth & (g_ciTileSize - 1);
+				tile.w = iExtraX ? iExtraX : g_ciTileSize;
+			}
+			else
+				tile.w = g_ciTileSize;
+
+			if (y == m_TileYCount - 1)
+			{
+				int iExtraY = iHeight & (g_ciTileSize - 1);
+				tile.h = iExtraY ? iExtraY : g_ciTileSize;
+			}
+			else
+				tile.h = g_ciTileSize;
+		}
+	}
+}
+
+void Arti3DDevice::ClearTileMT()
+{
+
+}
+
+Arti3DResult Arti3DDevice::SetVertexLayout(Arti3DVertexLayout *pLayout)
+{
+	if (!pLayout)
+		return ARTI3D_INVALID_PARAMETER;
+	
+	m_pVertexLayout = pLayout;
+	
+	return ARTI3D_OK;
+}
+
+Arti3DResult Arti3DDevice::InitializeThreads()
+{
+
+	// Initialize Vertex Cache Array For Every Thread!
+	m_ppVertexCache = new Arti3DVertexCache*[m_iThreadNum];
+	
+	if (!m_ppVertexCache)
+		return ARTI3D_OUT_OF_MEMORY;
+	
+	for (uint32_t i = 0; i < m_iThreadNum; ++i)
+	{
+		m_ppVertexCache[i] = new Arti3DVertexCache[g_ciCacheSize];
+	
+		if (!m_ppVertexCache[i])
+			return ARTI3D_OUT_OF_MEMORY;
+	}
+
+	// Initialize Transformed Vertex Array For Every Thread!
+	m_ppTransformedVertex = new Arti3DTransformedVertex*[m_iThreadNum];
+	
+	if (!m_ppTransformedVertex)
+		return ARTI3D_OUT_OF_MEMORY;
+
+	for (uint32_t i = 0; i < m_iThreadNum; ++i)
+	{
+		m_ppTransformedVertex[i] = new Arti3DTransformedVertex[g_ciCacheSize];
+		
+		if (!m_ppTransformedVertex[i])
+			return ARTI3D_OUT_OF_MEMORY;
+	}
+
+	// Initialize Transformed Face Array For Every Thread!
+	m_ppTransformedFace = new Arti3DTransformedFace*[m_iThreadNum];
+	
+	if (!m_ppTransformedFace)
+		return ARTI3D_OUT_OF_MEMORY;
+
+	for (uint32_t i = 0; i < m_iThreadNum; ++i)
+	{
+		m_ppTransformedFace[i] = new Arti3DTransformedFace[g_ciCacheSize];
+
+		if (!m_ppTransformedFace[i])
+			return ARTI3D_OUT_OF_MEMORY;
+	}
+
+	return ARTI3D_OK;
+}
+
+Arti3DResult Arti3DDevice::CreateVertexLayout(Arti3DVertexLayout **o_pVertexLayout, uint32_t iAttribute, Arti3DVertexAttributeFormat *i_pVAFormat)
+{
+	if (!o_pVertexLayout || iAttribute == 0 || !i_pVAFormat)
+		return ARTI3D_INVALID_PARAMETER;
+
+	*o_pVertexLayout = new Arti3DVertexLayout();
+
+	if (!*o_pVertexLayout)
+		return ARTI3D_OUT_OF_MEMORY;
+
+	(*o_pVertexLayout)->Create(iAttribute, i_pVAFormat);
+
+	return ARTI3D_OK;
+}
+
+Arti3DResult Arti3DDevice::CreateVertexBuffer(Arti3DVertexBuffer **o_pVertexBuffer, uint32_t iLength)
+{
+	if (!o_pVertexBuffer || iLength == 0)
+		return ARTI3D_INVALID_PARAMETER;
+
+	*o_pVertexBuffer = new Arti3DVertexBuffer();
+
+	if (!*o_pVertexBuffer)
+		return ARTI3D_OUT_OF_MEMORY;
+
+	(*o_pVertexBuffer)->Create(iLength);
+
+	return ARTI3D_OK;
+}
+
+Arti3DResult Arti3DDevice::SetVertexBuffer(Arti3DVertexBuffer *pVertexBuffer)
+{
+	if (!pVertexBuffer)
+		return ARTI3D_NULL_PARAMETER;
+
+	m_pVertexBuffer = pVertexBuffer;
+
+	return ARTI3D_OK;
+}
+
+Arti3DResult Arti3DDevice::CreateIndexBuffer(Arti3DIndexBuffer **o_pIndexBuffer, uint32_t iLength, Arti3DFormat format)
+{
+	if (!o_pIndexBuffer)
+		return ARTI3D_NULL_PARAMETER;
+	if (!iLength)
+		return ARTI3D_INVALID_PARAMETER;
+
+	*o_pIndexBuffer = new Arti3DIndexBuffer();
+	
+	if (!*o_pIndexBuffer)
+		return ARTI3D_OUT_OF_MEMORY;
+
+	(*o_pIndexBuffer)->Create(iLength, format);
+	return ARTI3D_OK;
+}
+
+Arti3DResult Arti3DDevice::SetIndexBuffer(Arti3DIndexBuffer *pIndexBuffer)
+{
+	if (!pIndexBuffer)
+		return ARTI3D_NULL_PARAMETER;
+	m_pIndexBuffer = pIndexBuffer;
+	return ARTI3D_OK;
+}
 

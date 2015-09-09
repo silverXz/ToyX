@@ -16,11 +16,11 @@
     <Filter Include="ToyMath">
       <UniqueIdentifier>{63a26f5c-d92d-4a6c-8cbe-8098d417aa30}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ToyRender">
-      <UniqueIdentifier>{bc6b4f91-3564-4826-9661-e89017b17232}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Utility">
       <UniqueIdentifier>{4ae984c8-4bd8-4fe4-8ec6-43b4650aade2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Arti3D_Core">
+      <UniqueIdentifier>{bc6b4f91-3564-4826-9661-e89017b17232}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -29,9 +29,6 @@
   <ItemGroup>
     <ClInclude Include="ToyMath.h">
       <Filter>ToyMath</Filter>
-    </ClInclude>
-    <ClInclude Include="ToyRender.h">
-      <Filter>ToyRender</Filter>
     </ClInclude>
     <ClInclude Include="stdafx.h">
       <Filter>Header Files</Filter>
@@ -42,17 +39,32 @@
     <ClInclude Include="Clock.h">
       <Filter>Utility</Filter>
     </ClInclude>
-    <ClInclude Include="MessAround.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Shader.h">
-      <Filter>ToyRender</Filter>
+      <Filter>Arti3D_Core</Filter>
     </ClInclude>
     <ClInclude Include="SSE_Math.h">
       <Filter>ToyMath</Filter>
     </ClInclude>
-    <ClInclude Include="ToyTypes.h">
-      <Filter>ToyRender</Filter>
+    <ClInclude Include="Arti3D_VertexBuffer.h">
+      <Filter>Arti3D_Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Arti3D_Device.h">
+      <Filter>Arti3D_Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Arti3D_Types.h">
+      <Filter>Arti3D_Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Arti3D_VertexLayout.h">
+      <Filter>Arti3D_Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Helper.h">
+      <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Arti3D_ForwardDecl.h">
+      <Filter>Arti3D_Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Arti3D_IndexBuffer.h">
+      <Filter>Arti3D_Core</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -62,14 +74,23 @@
     <ClCompile Include="ToyX.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ToyRender.cpp">
-      <Filter>ToyRender</Filter>
-    </ClCompile>
     <ClCompile Include="Shader.cpp">
-      <Filter>ToyRender</Filter>
+      <Filter>Arti3D_Core</Filter>
     </ClCompile>
     <ClCompile Include="SSE_Math.cpp">
       <Filter>ToyMath</Filter>
+    </ClCompile>
+    <ClCompile Include="Arti3D_Device.cpp">
+      <Filter>Arti3D_Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Arti3D_VertexBuffer.cpp">
+      <Filter>Arti3D_Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Arti3D_VertexLayout.cpp">
+      <Filter>Arti3D_Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Arti3D_IndexBuffer.cpp">
+      <Filter>Arti3D_Core</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

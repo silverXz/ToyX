@@ -7,14 +7,14 @@
 #define SSE_ALIGN __declspec(align(16))
 
 struct Toy_Vertex;
-struct Toy_TransformedVertex;
+struct Arti3DTransformedVertex;
 struct GlobalUniforms;
 
 
 struct VS_PARAM
 {
 	Toy_Vertex				*v_in;
-	Toy_TransformedVertex	*v_out;
+	Arti3DTransformedVertex	*v_out;
 	GlobalUniforms			*uniforms;
 };
 

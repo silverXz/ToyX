@@ -81,24 +81,31 @@
     <Text Include="..\..\..\..\SilverX%27s Space\VS2013 Projects\ToyX\ToyX\ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Arti3D_ForwardDecl.h" />
+    <ClInclude Include="Arti3D_IndexBuffer.h" />
+    <ClInclude Include="Arti3D_VertexBuffer.h" />
+    <ClInclude Include="Arti3D_VertexLayout.h" />
     <ClInclude Include="Clock.h" />
-    <ClInclude Include="MessAround.h" />
+    <ClInclude Include="Helper.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="SSE_Math.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="ToyMath.h" />
-    <ClInclude Include="ToyRender.h" />
-    <ClInclude Include="ToyTypes.h" />
+    <ClInclude Include="Arti3D_Device.h" />
+    <ClInclude Include="Arti3D_Types.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Arti3D_IndexBuffer.cpp" />
+    <ClCompile Include="Arti3D_VertexBuffer.cpp" />
+    <ClCompile Include="Arti3D_VertexLayout.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="SSE_Math.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="ToyRender.cpp" />
+    <ClCompile Include="Arti3D_Device.cpp" />
     <ClCompile Include="ToyX.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

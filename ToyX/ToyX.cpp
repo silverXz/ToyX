@@ -17,7 +17,7 @@
 
 
 
-#include "ToyRender.h"
+#include "Arti3D_Device.h"
 
 
 using namespace toy;
@@ -119,7 +119,7 @@ int _tmain(int argc, _TCHAR* argv[])
 // 
 // 	printf("CacheLineSize: %d", cacheSize);
 
-	ToyRender toyRender;
+	Arti3DDevice toyRender;
 
  	SDL_Surface *cb = SDL_GetWindowSurface(g_Window);
 

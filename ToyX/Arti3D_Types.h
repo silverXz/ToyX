@@ -4,24 +4,26 @@
 #include "ToyMath.h"
 #include <SDL/SDL.h>
 #include <cstdint>
+#include <vector>
+#include "Shader.h"
 
 #define FLOAT_CAST(x) static_cast<float>(x)
 
 
-const int VERTEX_ARRAY_SIZE = 1000;
-const int INDICE_ARRAY_SIZE = 3 * VERTEX_ARRAY_SIZE;
-const int CACHE_SIZE = 32;
-const int VARYINGS_NUM = 12;
-const int CLIP_VERTEX_MAX = 9;
-
-const int TEXTURE_UNIT_MAX = 16;
+const int g_ciVertexArraySize = 1000;
+const int g_ciIndexArraySize = 3 * g_ciVertexArraySize;
+const int g_ciCacheSize = 32;
+const int g_ciMaxVaryingNum = 12;
+const int g_ciMaxClipVertex = 9;
+const int g_ciMaxThreadNum = 8;
+const int g_ciMaxTextureUnit = 16;
 
 // If you want to change TILE_SIZE, remember to change TILE_SIZE_SHIFT as well.
 // TILE_SIZE = 1 << TILE_SIZE_SHIFT.
-const int TILE_SIZE = 16;
-const int TILE_SIZE_SHIFT = 4;
+const int g_ciTileSize = 16;
+const int g_ciTileSizeShift = 4;
 
-const int BLOCK_SIZE = 8;
+const int g_ciBlockSize = 8;
 
 class ToyColor {
 public:
@@ -52,7 +54,15 @@ public:
 	}
 };
 
-enum ClipMask{
+struct Arti3DDeviceParameter
+{
+	uint32_t	iWidth, iHeight;
+	bool		bMultiThread;
+};
+
+
+
+enum Arti3DClipMask{
 	CLIP_POS_X = 1,
 	CLIP_NEG_X = 2,
 	CLIP_POS_Y = 4,
@@ -61,7 +71,7 @@ enum ClipMask{
 	CLIP_NEG_Z = 32
 };
 
-enum MatrixType {
+enum Arti3DMatrixType {
 	TOY_MATRIX_MODEL = 0,
 	TOY_MATRIX_VIEW,
 	TOY_MATRIX_PROJECTION,
@@ -82,18 +92,18 @@ struct Toy_Vertex
 	float u, v;
 };
 
-struct Toy_TransformedVertex
+struct Arti3DTransformedVertex
 {
 	toy::vec4 p;
-	float varyings[VARYINGS_NUM];
+	float varyings[g_ciMaxVaryingNum];
 };
 
-struct VertexCache
+struct Arti3DVertexCache
 {
 	uint32_t				tag;
-	Toy_TransformedVertex	*v;
+	Arti3DTransformedVertex	*v;
 
-	VertexCache() : tag(UINT_MAX), v(nullptr) {}
+	Arti3DVertexCache() : tag(UINT_MAX), v(nullptr) {}
 
 	inline void Clear()
 	{
@@ -109,37 +119,45 @@ struct Toy_Plane
 
 struct Toy_VertexBuffer
 {
-	Toy_Vertex	vBuffer[VERTEX_ARRAY_SIZE];
+	Toy_Vertex	vBuffer[g_ciVertexArraySize];
 	int			size;
 };
 
 struct Toy_IndiceBuffer
 {
-	uint32_t	iBuffer[INDICE_ARRAY_SIZE];
+	uint32_t	iBuffer[g_ciIndexArraySize];
 	int			size;
 };
 
 struct Toy_TransformedVertexBuffer
 {
-	Toy_TransformedVertex tvBuffer[VERTEX_ARRAY_SIZE];
+	Arti3DTransformedVertex tvBuffer[g_ciVertexArraySize];
 	int size;
 };
 
-struct Toy_TransformedFace
+struct Arti3DTransformedFace
 {
 	float v0x, v0y, v0w;
-	float v0v[VARYINGS_NUM];
+	float v0v[g_ciMaxVaryingNum];
 
 	int fp1[2];
 	int fp2[2];
 	int fp3[2];
 
 	toy::vec2 dw;
-	toy::vec2 dv[VARYINGS_NUM];
+	toy::vec2 dv[g_ciMaxVaryingNum];
 };
 
 
-
+enum Arti3DResult {
+	ARTI3D_OK = 0,
+	ARTI3D_INVALID_PARAMETER,
+	ARTI3D_NULL_PARAMETER,
+	ARTI3D_INVALID_ENUM,
+	ARTI3D_RANGE_EXCEED,
+	ARTI3D_VARYING_EXCEED,
+	ARTI3D_OUT_OF_MEMORY
+};
 
 
 
@@ -164,7 +182,7 @@ struct RenderTarget
 {
 	SDL_Surface *back_buffer;
 	SDL_Surface	*z_buffer;
-	SDL_Surface* tex[TEXTURE_UNIT_MAX];
+	SDL_Surface* tex[g_ciMaxTextureUnit];
 
 	int		iTex;
 
@@ -187,7 +205,7 @@ struct RenderTarget
 			return -1;
 		}
 		
-		if (iTex >= TEXTURE_UNIT_MAX)
+		if (iTex >= g_ciMaxTextureUnit)
 		{
 			std::cerr << "RenderTarget : Max Texture Limits Reached!\n";
 			return -1;
@@ -199,40 +217,100 @@ struct RenderTarget
 	}
 };
 
-enum TileCoverage {
+enum Arti3DVertexAttributeFormat
+{
+	ARTI3D_VAF_FLOAT32,
+	ARTI3D_VAF_VECTOR2,
+	ARTI3D_VAF_VECTOR3,
+	ARTI3D_VAF_VECTOR4
+};
+
+enum Arti3D_TileCoverage {
 	TC_PARTIAL = 0,
 	TC_ALL
 };
 
-enum FragmentCoverage
+enum Arti3DFormat {
+	ARTI3D_R32F,
+	ARTI3D_R32G32F,
+	ARTI3D_R32G32B32F,
+	ARTI3D_R32G32B32A32F,
+
+	ARTI3D_INDEX16,
+	ARTI3D_INDEX32
+};
+
+enum Arti3D_FragmentCoverage
 {
 	FC_TILE = 0,
 	FC_BLOCK,
 	FC_FRAGMENT,
 };
 
-struct Toy_TilizedFace
+struct Arti3D_TiledFace
 {
 	uint32_t		id;
-	TileCoverage	coverageType;
+	Arti3D_TileCoverage	coverageType;
 };
 
-struct Toy_Fragment
+struct Arti3D_Fragment
 {
 	int x, y;
 	int mask;
 	int faceID;
-	FragmentCoverage	coverType;
+	Arti3D_FragmentCoverage	coverType;
 };
 
-struct Toy_Tile
+struct Arti3D_Tile
 {
-	std::vector<Toy_TilizedFace>	aTilizedFace;
-	std::vector<Toy_Fragment>		aFragment;
+	std::vector<Arti3D_TiledFace>	aTilizedFace;
+	std::vector<Arti3D_Fragment>		aFragment;
+	
+	Arti3D_TiledFace	**face_index_buffer;
+	uint32_t			**index_buffer_size;
+
+	volatile uint32_t	iFragment;
+
+	
 	int x, y;
 	int w, h;
 };
 
+enum Toy3DVertexElementType {
+	TOY3D_VT_FLOAT32,
+	TOY3D_VT_VECTOR2,
+	TOY3D_VT_VECTOR3,
+	TOY3D_VT_VECTOR4
+};
+
+struct Toy3DVertexElement {
+	uint32_t				iVaryingSlot;
+	Toy3DVertexElementType	eType;
+};
+
+struct UyVertexFormat
+{
+
+};
+
+
+
+// Inline Helper Functions
+
+inline void SAFE_DELETE_ARRAY(void *ptr)
+{
+	if (ptr) delete[] ptr, ptr = nullptr;
+}
+
+inline void SAFE_DELETE(void *ptr)
+{
+	if (ptr) delete ptr, ptr = nullptr;
+}
+
+inline bool FUNC_FAILED(Arti3DResult result)
+{
+	return result != ARTI3D_OK;
+}
 
 
 #endif
