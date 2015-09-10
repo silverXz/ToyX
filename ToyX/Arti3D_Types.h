@@ -208,7 +208,8 @@ enum Arti3DVertexAttributeFormat
 	ARTI3D_VAF_FLOAT32,
 	ARTI3D_VAF_VECTOR2,
 	ARTI3D_VAF_VECTOR3,
-	ARTI3D_VAF_VECTOR4
+	ARTI3D_VAF_VECTOR4,
+	ARTI3D_VAF_UNDEFINED
 };
 
 enum Arti3DTileCoverage {
@@ -282,5 +283,15 @@ inline bool FUNC_FAILED(Arti3DResult result)
 	return result != ARTI3D_OK;
 }
 
+inline int iRound(float f)
+{
+	int retval;
+	__asm {
+		fld f
+			fistp retval
+	}
+	return retval;
+	//return static_cast<int>(f + 0.5f);
+}
 
 #endif

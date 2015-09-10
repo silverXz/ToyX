@@ -1597,7 +1597,7 @@ Arti3DResult Arti3DDevice::InitializeThreads()
 	if (!m_pThreads)
 		return ARTI3D_OUT_OF_MEMORY;
 	for (int i = 0; i < g_ciMaxThreadNum; ++i)
-		m_pThreads->Create(); 
+		m_pThreads->Create(this); 
 	return ARTI3D_OK;
 }
 

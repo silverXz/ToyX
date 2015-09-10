@@ -4,7 +4,7 @@
 #include "stdafx.h"
 
 
-#include <SDL/SDL.h>
+#include <SDL2/SDL.h>
 #include <memory.h>
 #include <stdint.h>
 #include <windows.h>
@@ -92,15 +92,6 @@ int _tmain(int argc, _TCHAR* argv[])
 			fprintf_s(stderr, "SDL_SetVideoMode Failed!\n");
 			return 1;
 		}
-
-		//获取系统高速缓存行的信息
-		// 	SYSTEM_LOGICAL_PROCESSOR_INFORMATION slpi;
-		// 	DWORD len;
-		// 	GetLogicalProcessorInformation(&slpi, &len);
-		// 
-		//  	WORD cacheSize = slpi.Cache.LineSize;
-		// 
-		// 	printf("CacheLineSize: %d", cacheSize);
 
 		Arti3DDevice toyRender;
 

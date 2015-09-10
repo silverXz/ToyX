@@ -7,6 +7,7 @@ class Arti3DTile
 {
 protected:
 	friend class Arti3DDevice;
+	friend class Arti3DThread;
 
 	Arti3DTile();
 	~Arti3DTile();

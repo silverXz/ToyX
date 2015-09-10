@@ -12,8 +12,7 @@
 
 class Arti3DDevice
 {
-
-public:
+	friend class Arti3DThread;
 
 
 
@@ -182,6 +181,10 @@ private:
 	std::vector<Arti3_DTile>		m_aTile;
 
 	Arti3DTile*					m_pTiles;
+
+// 	uint32_t					*m_pJobQueue;
+// 	uint32_t					m_iJobStart;
+// 	uint32_t					m_iJobEnd;
 
 	int							m_iTileX;
 	int							m_iTileY;

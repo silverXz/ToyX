@@ -60,3 +60,11 @@ uint32_t Arti3DVertexLayout::iGetFloats()
 {
 	return m_iFloats;
 }
+
+Arti3DResult Arti3DVertexLayout::fmtGetVertexAttributeFormate(uint32_t i_iAttributeIndex, Arti3DVertexAttributeFormat *o_pVertexAttributeFormat)
+{
+	if (i_iAttributeIndex >= m_iVertexAttribute)
+		return ARTI3D_RANGE_EXCEED;
+	*o_pVertexAttributeFormat = m_pVertexAttributeFormat[i_iAttributeIndex];
+	return ARTI3D_OK;
+}
