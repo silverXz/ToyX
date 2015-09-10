@@ -10,14 +10,15 @@
 #define FLOAT_CAST(x) static_cast<float>(x)
 
 
-const int g_ciVertexArraySize = 1000;
-const int g_ciIndexArraySize = 3 * g_ciVertexArraySize;
+const int g_ciMaxVertexNumPerPatch = 3000;
+const int g_ciMaxClipVertexNumPerPatch = 5 * g_ciMaxVertexNumPerPatch;
 const int g_ciCacheSize = 32;
 const int g_ciMaxVaryingNum = 12;
 const int g_ciMaxClipVertex = 9;
 const int g_ciMaxThreadNum = 8;
 const int g_ciMaxTextureUnit = 16;
 const int g_ciMaxVSRegister = 8;
+const int g_ciMaxFaceNumPerTile = 128;
 
 // If you want to change TILE_SIZE, remember to change TILE_SIZE_SHIFT as well.
 // TILE_SIZE = 1 << TILE_SIZE_SHIFT.
@@ -93,7 +94,7 @@ struct Toy_Vertex
 	float u, v;
 };
 
-struct Arti3DTransformedVertex
+struct Arti3DVSOutput
 {
 	toy::vec4 p;
 	float varyings[g_ciMaxVaryingNum];
@@ -102,38 +103,19 @@ struct Arti3DTransformedVertex
 struct Arti3DVertexCache
 {
 	uint32_t				tag;
-	Arti3DTransformedVertex	*v;
+	Arti3DVSOutput			vs_output;
 
-	Arti3DVertexCache() : tag(UINT_MAX), v(nullptr) {}
+	Arti3DVertexCache() : tag(UINT_MAX){}
 
 	inline void Clear()
 	{
 		tag = UINT_MAX;
-		v = nullptr;
 	}
 };
 
 struct Toy_Plane
 {
 	float x, y, z, d;
-};
-
-struct Toy_VertexBuffer
-{
-	Toy_Vertex	vBuffer[g_ciVertexArraySize];
-	int			size;
-};
-
-struct Toy_IndiceBuffer
-{
-	uint32_t	iBuffer[g_ciIndexArraySize];
-	int			size;
-};
-
-struct Toy_TransformedVertexBuffer
-{
-	Arti3DTransformedVertex tvBuffer[g_ciVertexArraySize];
-	int size;
 };
 
 struct Arti3DTransformedFace
@@ -164,7 +146,7 @@ enum Arti3DResult {
 
 
 
-struct GlobalUniforms
+struct Arti3DShaderUniform
 {
 	toy::mat4 model;
 	toy::mat4 view;
@@ -177,7 +159,9 @@ struct RenderContext
 {
 	VertexShader	vs;
 	FragmentShader	fs;
-	GlobalUniforms	globals;
+	Arti3DVertexShader	pfnVS;
+	Arti3DPixelShader	pfnPS;
+	Arti3DShaderUniform	globals;
 };
 
 struct RenderTarget
@@ -227,9 +211,9 @@ enum Arti3DVertexAttributeFormat
 	ARTI3D_VAF_VECTOR4
 };
 
-enum Arti3D_TileCoverage {
-	TC_PARTIAL = 0,
-	TC_ALL
+enum Arti3DTileCoverage {
+	ARTI3D_TC_PARTIAL = 0,
+	ARTI3D_TC_ALL
 };
 
 enum Arti3DFormat {
@@ -252,10 +236,10 @@ enum Arti3D_FragmentCoverage
 struct Arti3D_TiledFace
 {
 	uint32_t		id;
-	Arti3D_TileCoverage	coverageType;
+	Arti3DTileCoverage	coverageType;
 };
 
-struct Arti3D_Fragment
+struct Arti3DFragment
 {
 	int x, y;
 	int mask;
@@ -263,13 +247,14 @@ struct Arti3D_Fragment
 	Arti3D_FragmentCoverage	coverType;
 };
 
-struct Arti3D_Tile
+struct Arti3_DTile
 {
 	std::vector<Arti3D_TiledFace>	aTilizedFace;
-	std::vector<Arti3D_Fragment>		aFragment;
+	std::vector<Arti3DFragment>		aFragment;
 	
-	Arti3D_TiledFace	**face_index_buffer;
-	uint32_t			**index_buffer_size;
+	uint32_t			**ppFaceIndexBuffer;
+	uint32_t			*pIndexBufferSize;
+	Arti3DTileCoverage	**ppTileCoverage;
 
 	volatile uint32_t	iFragment;
 
@@ -278,22 +263,6 @@ struct Arti3D_Tile
 	int w, h;
 };
 
-enum Toy3DVertexElementType {
-	TOY3D_VT_FLOAT32,
-	TOY3D_VT_VECTOR2,
-	TOY3D_VT_VECTOR3,
-	TOY3D_VT_VECTOR4
-};
-
-struct Toy3DVertexElement {
-	uint32_t				iVaryingSlot;
-	Toy3DVertexElementType	eType;
-};
-
-struct UyVertexFormat
-{
-
-};
 
 typedef toy::vec4 ShaderRegister;
 
@@ -301,24 +270,12 @@ struct Arti3DVSInput {
 	ShaderRegister ShaderInputs[g_ciMaxVSRegister];
 };
 
-struct Arti3DVSOutput {
-	ShaderRegister	vPosition;
-	float	Varyings[g_ciMaxVaryingNum];
-};
-
 
 
 // Inline Helper Functions
 
-inline void SAFE_DELETE_ARRAY(void *ptr)
-{
-	if (ptr) delete[] ptr, ptr = nullptr;
-}
-
-inline void SAFE_DELETE(void *ptr)
-{
-	if (ptr) delete ptr, ptr = nullptr;
-}
+#define SAFE_DELETE_ARRAY(p) { if(p) { delete[] (p),(p) = nullptr;} }
+#define SAFE_DELETE(p) {if(p) {delete (p), (p) = nullptr;}}
 
 inline bool FUNC_FAILED(Arti3DResult result)
 {

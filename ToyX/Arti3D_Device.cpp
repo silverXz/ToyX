@@ -8,6 +8,8 @@
 #include "Arti3D_VertexLayout.h"
 #include "Arti3D_VertexBuffer.h"
 #include "Arti3D_IndexBuffer.h"
+#include "Arti3D_Thread.h"
+#include "Arti3D_Tile.h"
 
 
 using namespace toy;
@@ -15,11 +17,9 @@ using namespace toy;
 Arti3DDevice::Arti3DDevice() : m_pIndexBuffer(nullptr),
 	m_pVertexBuffer(nullptr),
 	m_pVertexLayout(nullptr),
+	m_pThreads(nullptr),
 	m_iThreadNum(g_ciMaxThreadNum),
 	m_iWorkingThreadNum(0),
-	m_ppVertexCache(nullptr),
-	m_ppTransformedVertex(nullptr),
-	m_ppTransformedFace(nullptr),
 	m_pTiles(nullptr)
 {
 	dFile.open("Debug.txt", std::ios::ate);
@@ -32,27 +32,8 @@ Arti3DDevice::~Arti3DDevice()
 	SAFE_DELETE(m_pIndexBuffer);
 	SAFE_DELETE(m_pVertexBuffer);
 	SAFE_DELETE(m_pVertexLayout);
-
-	if (m_ppVertexCache)
-	{
-		for (uint32_t i = 0; i < m_iThreadNum; ++i)
-			SAFE_DELETE_ARRAY(m_ppVertexCache[i]);
-		SAFE_DELETE_ARRAY(m_ppVertexCache);
-	}
-
-	if (m_ppTransformedVertex)
-	{
-		for (uint32_t i = 0; i < m_iThreadNum; ++i)
-			SAFE_DELETE_ARRAY(m_ppTransformedVertex[i]);
-		SAFE_DELETE_ARRAY(m_ppTransformedVertex);
-	}
-
-	if (m_ppTransformedFace)
-	{
-		for (uint32_t i = 0; i < m_iThreadNum; ++i)
-			SAFE_DELETE_ARRAY(m_ppTransformedFace[i]);
-		SAFE_DELETE_ARRAY(m_ppTransformedFace);
-	}
+	SAFE_DELETE_ARRAY(m_pThreads);
+	SAFE_DELETE_ARRAY(m_pTiles);
 }
 
 
@@ -71,7 +52,7 @@ void Arti3DDevice::ClearDepthBuffer(float cDepth)
 
 void Arti3DDevice::SetMatrix(Arti3DMatrixType matrixType, const toy::mat4& m)
 {
-	GlobalUniforms &rgu = mRC.globals;
+	Arti3DShaderUniform &rgu = mRC.globals;
 	switch (matrixType)
 	{
 	case TOY_MATRIX_MODEL:
@@ -184,39 +165,6 @@ void Arti3DDevice::Draw3DSolidTriangle(const toy::vec4& p1, const toy::vec4& p2,
 void Arti3DDevice::LoadCube()
 {
 	const float len = 2.0f;
-	Toy_Vertex v[8];
-	
-	v[0].p = vec4(-len, len, len, 1.0f);
-	v[0].c = vec4(1.0f, 0.0f, 0.0f, 1.0f);
-
-	v[1].p = vec4(len, len, len, 1.0f);
-	v[1].c = vec4(0.0f, 1.0f, 0.0f, 1.0f);
-	
-	v[2].p = vec4(len, len, -len, 1.0f);
-	v[2].c = vec4(0.0f, 0.0f, 1.0f, 1.0f);
-
-	v[3].p = vec4(-len, len, -len, 1.0f);
-	v[3].c = vec4(0.0f, 1.0f, 1.0f, 1.0f);
-	
-	v[4].p = vec4(-len, -len, len, 1.0f);
-	v[4].c = vec4(1.0f, 0.0f, 1.0f, 1.0f);
-	
-	v[5].p = vec4(len, -len, len, 1.0f);
-	v[5].c = vec4(1.0f, 1.0f, 0.0f, 1.0f);
-
-	v[6].p = vec4(len, -len, -len, 1.0f);
-	v[6].c = vec4(1.0f,1.0f,1.0f,0.0f);
-
-	v[7].p = vec4(-len, -len, -len, 1.0f);
-	v[7].c = vec4(0.0f, 0.0f, 0.0f, 1.0f);
-
-
-	UploadData(GEOMETRY_VERTEX, v, sizeof(v));
-
-	uint32_t indices[] = { 0,1,2,0,2,3,0,4,5,0,5,1,1,5,6,1,6,2,4,7,6,4,6,5,0,3,7,0,7,4,3,2,6,3,6,7};
-	//uint32_t indices[] = { 0,1,2,0,5,1,1,5,2 };
-	UploadData(GEOMETRY_INDICE, indices, sizeof(indices));
-
 
 	Arti3DVertexLayout *pVertexLayout = nullptr;
 	Arti3DVertexAttributeFormat vaf[] = { ARTI3D_VAF_VECTOR4, ARTI3D_VAF_VECTOR4 };
@@ -281,38 +229,16 @@ void Arti3DDevice::SetRenderTarget(const RenderTarget &rRT)
 {
 	mRT = rRT;
 	InitTile();
+	IntiTileMT();
 }
 
 
-void Arti3DDevice::UploadData(GeometryDataType gdt, void *ptr, uint32_t size)
-{
-	if (!ptr)
-	{
-		std::cerr << "UploadData : nullptr!\n";
-		return;
-	}
-
-	switch (gdt)
-	{
-	case GEOMETRY_VERTEX:
-		memcpy(vBuffer.vBuffer, ptr, size);
-		vBuffer.size = size / sizeof(Toy_Vertex);
-		break;
-	case GEOMETRY_INDICE:
-		memcpy(iBuffer.iBuffer, ptr, size);
-		iBuffer.size = size / sizeof(uint32_t);
-		break;
-	default:
-		break;
-	}
-}
-
-void Arti3DDevice::GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DTransformedVertex *out)
+void Arti3DDevice::GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DVSOutput *out)
 {
 	uint32_t iCacheIndex = i_iVertexIndex&(g_ciCacheSize - 1);
-	if (vCache[iCacheIndex].tag == i_iVertexIndex)
+	if (m_VSOutputCache[iCacheIndex].tag == i_iVertexIndex)
 	{
-		*out = *(vCache[iCacheIndex].v);
+		*out = m_VSOutputCache[iCacheIndex].vs_output;
 	}
 	else
 	{
@@ -323,7 +249,7 @@ void Arti3DDevice::GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DTransform
 		float *pV = (float*)pSrc;
 		uint32_t iAttributeNum = 0;
 		m_pVertexLayout->iGetAttributeNum(&iAttributeNum);
-		for (int i = 0; i < iAttributeNum; ++i)
+		for (uint32_t i = 0; i < iAttributeNum; ++i)
 		{
 			switch (m_pVertexLayout->m_pVertexAttributeFormat[i])
 			{
@@ -339,14 +265,11 @@ void Arti3DDevice::GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DTransform
 			}
 		}
 
-		VS_PARAM vs_param;
-		vs_param.v_in = &vBuffer.vBuffer[i_iVertexIndex];
-		vs_param.v_out = &tvBuffer[i_iVertexIndex];
-		vs_param.uniforms = &mRC.globals;
-		mRC.vs(&vs_param);
-		vCache[iCacheIndex].tag = i_iVertexIndex;
-		vCache[iCacheIndex].v = vs_param.v_out;
-		*out = *(vCache[iCacheIndex].v);
+		// Try Something new :)
+
+ 		mRC.pfnVS(&vsinput, &mRC.globals, &m_VSOutputCache[iCacheIndex].vs_output);
+ 		m_VSOutputCache[iCacheIndex].tag = i_iVertexIndex;
+ 		*out = m_VSOutputCache[iCacheIndex].vs_output;
 	}
 }
 
@@ -355,19 +278,21 @@ void Arti3DDevice::ProcessV()
 	faceBuffer.clear();
 	ClearCache();
 
-	for (int i = 0; i < iBuffer.size; i += 3)
+	uint32_t iIndexNum = m_pIndexBuffer->iGetIndexNum();
+
+	for (uint32_t i = 0; i < iIndexNum; i += 3)
 	{
-		// For every face, get transformed vertex. 
-		// Clipping may happen that new vertex is introduced.
-		// The maximum vertex number clipping may produces is 
-		Arti3DTransformedVertex v[g_ciMaxClipVertex];
+		Arti3DVSOutput v[g_ciMaxClipVertex];
+
 		for (int j = 0; j < 3; ++j)
 		{
-			GetTransformedVertex(iBuffer.iBuffer[i + j], &v[j]);
-			PostProcessV(&v[j]);
+			uint32_t iVertexIndex = 0;
+			m_pIndexBuffer->GetVertexIndex(i + j, &iVertexIndex);
+			GetTransformedVertex(iVertexIndex, &v[j]);
 		}
 		InsertTransformedFace(&v[0], &v[1], &v[2]);
 	}
+
 }
 
 void Arti3DDevice::ProcessV_WithClip()
@@ -377,9 +302,9 @@ void Arti3DDevice::ProcessV_WithClip()
 
 	uint32_t iIndexNum = m_pIndexBuffer->iGetIndexNum();
 
-	for (int i = 0; i < iIndexNum; i += 3)
+	for (uint32_t i = 0; i < iIndexNum; i += 3)
 	{
-		Arti3DTransformedVertex v[g_ciMaxClipVertex];
+		Arti3DVSOutput v[g_ciMaxClipVertex];
 
 		for (int j = 0; j < 3; ++j)
 		{
@@ -390,22 +315,12 @@ void Arti3DDevice::ProcessV_WithClip()
 		ClipTriangle(&v[0], &v[1], &v[2]);
 	}
 
-// 	for (int i = 0; i < iBuffer.size; i += 3)
-// 	{
-// 		// For every face, get transformed vertex. 
-// 		// Clipping may happen that new vertex is introduced.
-// 		// The maximum vertex number clipping may produces is 
-// 		Arti3DTransformedVertex v[g_ciMaxClipVertex];
-// 		for (int j = 0; j < 3; ++j)
-// 			GetTransformedVertex(iBuffer.iBuffer[i + j], &v[j]);
-// 		ClipTriangle(&v[0], &v[1], &v[2]);
-// 	}
 }
 
-void Arti3DDevice::ClipTriangle(Arti3DTransformedVertex *v1, Arti3DTransformedVertex *v2, Arti3DTransformedVertex *v3)
+void Arti3DDevice::ClipTriangle(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVSOutput *v3)
 {
 
-	auto calcClipMask = [](Arti3DTransformedVertex *v) {
+	auto calcClipMask = [](Arti3DVSOutput *v) {
 		int mask = 0;
 		if (v->p.x - v->p.w > 0) mask |= CLIP_POS_X;
 		if (v->p.x + v->p.w < 0) mask |= CLIP_NEG_X;
@@ -451,7 +366,7 @@ void Arti3DDevice::ClipTriangle(Arti3DTransformedVertex *v1, Arti3DTransformedVe
 	};
 
 	// We need 2 index array ( with size CLIP_VERTEX_MAX ) to do ping pong buffering.
-	Arti3DTransformedVertex *v = v1;
+	Arti3DVSOutput *v = v1;
 	uint32_t inout[2][g_ciMaxClipVertex];
 	uint32_t *in = inout[0], *out = inout[1];
 	in[0] = 0;	in[1] = 1; in[2] = 2;
@@ -463,13 +378,13 @@ void Arti3DDevice::ClipTriangle(Arti3DTransformedVertex *v1, Arti3DTransformedVe
 	// Several lambda expression to help!
 
 	// Calculate the signed distance between a vertex and a plane.
-	auto calcPointPlaneDistance = [](const Toy_Plane *p, const Arti3DTransformedVertex *v) { 	return p->x * v->p.x + p->y * v->p.y + p->z * v->p.z + p->d * v->p.w;};
+	auto calcPointPlaneDistance = [](const Toy_Plane *p, const Arti3DVSOutput *v) { 	return p->x * v->p.x + p->y * v->p.y + p->z * v->p.z + p->d * v->p.w;};
 
 	// Determine whether two floats has different signs.
 	auto hasDifferentSigns = [](float a, float b) { return (a >= 0.0f && b < 0.0f) || (a < 0.0f && b >= 0.0f);	};
 
 	// Interpolate Vertex Attributes
-	auto interpolateV = [](const Arti3DTransformedVertex *v1, const Arti3DTransformedVertex *v2, float t, Arti3DTransformedVertex *out) {
+	auto interpolateV = [](const Arti3DVSOutput *v1, const Arti3DVSOutput *v2, float t, Arti3DVSOutput *out) {
 		out->p.x = v1->p.x + (v2->p.x - v1->p.x) * t;
 		out->p.y = v1->p.y + (v2->p.y - v1->p.y) * t;
 		out->p.z = v1->p.z + (v2->p.z - v1->p.z) * t;
@@ -526,7 +441,7 @@ void Arti3DDevice::ClipTriangle(Arti3DTransformedVertex *v1, Arti3DTransformedVe
 
 	for (int i = 0; i < inCnt; ++i)
 	{
-		Arti3DTransformedVertex *p = &v[in[i]];
+		Arti3DVSOutput *p = &v[in[i]];
 		PostProcessV(p);
 	}
 
@@ -534,7 +449,7 @@ void Arti3DDevice::ClipTriangle(Arti3DTransformedVertex *v1, Arti3DTransformedVe
 		InsertTransformedFace(&v[in[0]], &v[in[i]], &v[in[i + 1]]);
 }
 
-void Arti3DDevice::InsertTransformedFace(Arti3DTransformedVertex *v1, Arti3DTransformedVertex *v2, Arti3DTransformedVertex *v3)
+void Arti3DDevice::InsertTransformedFace(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVSOutput *v3)
 {
 	Arti3DTransformedFace f;
 	
@@ -571,7 +486,7 @@ void Arti3DDevice::InsertTransformedFace(Arti3DTransformedVertex *v1, Arti3DTran
 	faceBuffer.push_back(f);
 }
 
-int Arti3DDevice::CalcClipMask(Arti3DTransformedVertex *v)
+int Arti3DDevice::CalcClipMask(Arti3DVSOutput *v)
 {
 	int mask = 0;
 	if (v->p.x - v->p.w > 0) mask |= CLIP_POS_X;
@@ -591,7 +506,7 @@ void Arti3DDevice::ProcessR()
 	}
 }
 
-void Arti3DDevice::PostProcessV(Arti3DTransformedVertex *v)
+void Arti3DDevice::PostProcessV(Arti3DVSOutput *v)
 {
 	float invW = 1.0f / v->p.w;
 	v->p.x *= invW;
@@ -626,7 +541,7 @@ void Arti3DDevice::DrawMesh_TileBase()
 	ProcessV_WithClip();
 
 	ClearTile();
-	for (int i = 0; i < faceBuffer.size(); ++i)
+	for (uint32_t i = 0; i < faceBuffer.size(); ++i)
 		Tilize(i);
 
 	RasterizeTile();
@@ -663,7 +578,7 @@ void Arti3DDevice::ClearCache()
 {
 	for (auto i = 0; i < g_ciCacheSize; ++i)
 	{
-		vCache[i].Clear();
+		m_VSOutputCache[i].Clear();
 	}
 }
 
@@ -1042,19 +957,19 @@ void Arti3DDevice::InitTile()
 	int iWidth = mRT.back_buffer->w;
 	int iHeight = mRT.back_buffer->h;
 
-	m_TileXCount = (iWidth + g_ciTileSize - 1) >> g_ciTileSizeShift;
-	m_TileYCount = (iHeight + g_ciTileSize - 1) >> g_ciTileSizeShift;
+	m_iTileX = (iWidth + g_ciTileSize - 1) >> g_ciTileSizeShift;
+	m_iTileY = (iHeight + g_ciTileSize - 1) >> g_ciTileSizeShift;
 
-	m_aTile.resize(m_TileXCount * m_TileYCount);
+	m_aTile.resize(m_iTileX * m_iTileY);
 
-	for (int y = 0; y < m_TileYCount; ++y)
+	for (int y = 0; y < m_iTileY; ++y)
 	{
-		for (int x = 0; x < m_TileXCount; ++x)
+		for (int x = 0; x < m_iTileX; ++x)
 		{
-			Arti3D_Tile &tile = m_aTile[y * m_TileXCount + x];
+			Arti3_DTile &tile = m_aTile[y * m_iTileX + x];
 			tile.x = x * g_ciTileSize;
 			tile.y = y * g_ciTileSize;
-			if (x == m_TileXCount - 1)
+			if (x == m_iTileX - 1)
 			{
 				int iExtraX = iWidth & (g_ciTileSize - 1);
 				tile.w = iExtraX ? iExtraX : g_ciTileSize;
@@ -1062,7 +977,7 @@ void Arti3DDevice::InitTile()
 			else
 				tile.w = g_ciTileSize;
 
-			if (y == m_TileYCount - 1)
+			if (y == m_iTileY - 1)
 			{
 				int iExtraY = iHeight & (g_ciTileSize - 1);
 				tile.h = iExtraY ? iExtraY : g_ciTileSize;
@@ -1120,8 +1035,8 @@ void Arti3DDevice::Tilize(uint32_t faceid)
 	int iyMaxTile = ((ymax + 0xF) >> 4) >> g_ciTileSizeShift;
 
 	// Tile[x][y]
-	ixMaxTile = ixMinTile >= m_TileXCount ? m_TileXCount - 1 : ixMaxTile;
-	iyMaxTile = iyMaxTile >= m_TileYCount ? m_TileYCount - 1 : iyMaxTile;
+	ixMaxTile = ixMinTile >= m_iTileX ? m_iTileX - 1 : ixMaxTile;
+	iyMaxTile = iyMaxTile >= m_iTileY ? m_iTileY - 1 : iyMaxTile;
 
 
 	for (int y = iyMinTile; y <= iyMaxTile; ++y)
@@ -1129,9 +1044,9 @@ void Arti3DDevice::Tilize(uint32_t faceid)
 		for (int x = ixMinTile; x <= ixMaxTile; ++x)
 		{
 			// Get Tile Corner Fix Point Coordinate.
-			int iTile = y * m_TileXCount + x;
+			int iTile = y * m_iTileX + x;
 
-			Arti3D_Tile &tile = m_aTile[iTile];
+			Arti3_DTile &tile = m_aTile[iTile];
 
 			int x0 = tile.x << 4;
 			int x1 = (tile.x + g_ciTileSize - 1) << 4;
@@ -1159,10 +1074,10 @@ void Arti3DDevice::Tilize(uint32_t faceid)
 			if (a1 == 0xF && a2 == 0xF && a3 == 0xF)
 			{
 				if(tile.w == g_ciTileSize && tile.h == g_ciTileSize)
-					tile.aTilizedFace.push_back(Arti3D_TiledFace{ faceid, TC_ALL });
+					tile.aTilizedFace.push_back(Arti3D_TiledFace{ faceid, ARTI3D_TC_ALL });
 			}
 			else
-				tile.aTilizedFace.push_back(Arti3D_TiledFace{ faceid, TC_PARTIAL });
+				tile.aTilizedFace.push_back(Arti3D_TiledFace{ faceid, ARTI3D_TC_PARTIAL });
 		}
 	}
 }
@@ -1178,17 +1093,17 @@ void Arti3DDevice::ClearTile()
 
 void Arti3DDevice::RasterizeTile()
 {
-	for (int i = 0; i < m_aTile.size(); ++i)
+	for (size_t i = 0; i < m_aTile.size(); ++i)
 	{
-		Arti3D_Tile &tile = m_aTile[i];
-		for (int j = 0; j < tile.aTilizedFace.size(); ++j)
+		Arti3_DTile &tile = m_aTile[i];
+		for (size_t j = 0; j < tile.aTilizedFace.size(); ++j)
 		{
 			Arti3D_TiledFace &tf = tile.aTilizedFace[j];
 
 			// This Face is totally covering this tile.
-			if (tf.coverageType == TC_ALL)
+			if (tf.coverageType == ARTI3D_TC_ALL)
 			{
-				Arti3D_Fragment frag;
+				Arti3DFragment frag;
 				frag.x = tile.x;
 				frag.y = tile.y;
 				frag.coverType = FC_TILE;
@@ -1263,7 +1178,7 @@ void Arti3DDevice::RasterizeTile()
 					// Block Totally Inside Triangle!
 					if (a1 == 0xF && a2 == 0xF && a3 == 0xF)
 					{
-						Arti3D_Fragment frag;
+						Arti3DFragment frag;
 						frag.x = x;
 						frag.y = y;
 						frag.coverType = FC_BLOCK;
@@ -1309,7 +1224,7 @@ void Arti3DDevice::RasterizeTile()
 
 						if (0 != im)
 						{
-							Arti3D_Fragment frag;
+							Arti3DFragment frag;
 							frag.x = x;
 							frag.y = y + k;
 							frag.faceID = tf.id;
@@ -1334,7 +1249,7 @@ void Arti3DDevice::RasterizeTile()
 
 						if (0 != im)
 						{
-							Arti3D_Fragment frag;
+							Arti3DFragment frag;
 							frag.x = x + 4;
 							frag.y = y + k;
 							frag.faceID = tf.id;
@@ -1378,7 +1293,7 @@ void Arti3DDevice::RenderFragments()
 	}
 }
 
-void Arti3DDevice::RenderTileFragments(Arti3D_Fragment *frag)
+void Arti3DDevice::RenderTileFragments(Arti3DFragment *frag)
 {
 	__m128 W0, W1, WDY;
 	__m128 V0[g_ciMaxVaryingNum], V1[g_ciMaxVaryingNum], VDY[g_ciMaxVaryingNum];
@@ -1459,7 +1374,7 @@ void Arti3DDevice::RenderTileFragments(Arti3D_Fragment *frag)
 	}
 }
 
-void Arti3DDevice::RenderBlockFragments(Arti3D_Fragment *frag)
+void Arti3DDevice::RenderBlockFragments(Arti3DFragment *frag)
 {
 	__m128 W0, W1, WDY;
 	__m128 V0[g_ciMaxVaryingNum], V1[g_ciMaxVaryingNum], VDY[g_ciMaxVaryingNum];
@@ -1556,7 +1471,7 @@ void Arti3DDevice::DrawTileGrid()
 		Draw2DLines(0, y, iWidth - 1, y, gridColor);
 }
 
-void Arti3DDevice::RenderMaskedFragments(Arti3D_Fragment *frag)
+void Arti3DDevice::RenderMaskedFragments(Arti3DFragment *frag)
 {
 	__m128 W0, W1, WDY;
 	__m128 V0[g_ciMaxVaryingNum], V1[g_ciMaxVaryingNum], VDY[g_ciMaxVaryingNum];
@@ -1614,44 +1529,51 @@ Arti3DResult Arti3DDevice::InitializeDevice(Arti3DDeviceParameter deviceParam)
 
 void Arti3DDevice::ReleaseResource()
 {
-	if (m_pTiles)
-		delete m_pTiles, m_pTiles = nullptr;
 }
 
-void Arti3DDevice::IntiTileMT()
+Arti3DResult Arti3DDevice::IntiTileMT()
 {
 	int iWidth = mRT.back_buffer->w;
 	int iHeight = mRT.back_buffer->h;
 
-	m_TileXCount = (iWidth + g_ciTileSize - 1) >> g_ciTileSizeShift;
-	m_TileYCount = (iHeight + g_ciTileSize - 1) >> g_ciTileSizeShift;
+	m_iTileX = (iWidth + g_ciTileSize - 1) >> g_ciTileSizeShift;
+	m_iTileY = (iHeight + g_ciTileSize - 1) >> g_ciTileSizeShift;
 
-	m_pTiles = new Arti3D_Tile[m_TileYCount * m_TileXCount];
+	uint32_t iTotal = m_iTileX * m_iTileY;
 
-	for (int y = 0; y < m_TileYCount; ++y)
+	m_pTiles = new Arti3DTile[m_iTileY * m_iTileX];
+
+	if (!m_pTiles)
+		return ARTI3D_OUT_OF_MEMORY;
+
+	// Initialize Tile Data
+	for (int y = 0; y < m_iTileY; ++y)
 	{
-		for (int x = 0; x < m_TileXCount; ++x)
+		for (int x = 0; x < m_iTileX; ++x)
 		{
-			Arti3D_Tile &tile = m_pTiles[y * m_TileXCount + x];
-			tile.x = x * g_ciTileSize;
-			tile.y = y * g_ciTileSize;
-			if (x == m_TileXCount - 1)
+			Arti3DTile &tile = m_pTiles[y * m_iTileX + x];
+			tile.Create();
+			tile.m_iX = x * g_ciTileSize;
+			tile.m_iY = y * g_ciTileSize;
+			if (x == m_iTileX - 1)
 			{
 				int iExtraX = iWidth & (g_ciTileSize - 1);
-				tile.w = iExtraX ? iExtraX : g_ciTileSize;
+				tile.m_iWidth = iExtraX ? iExtraX : g_ciTileSize;
 			}
 			else
-				tile.w = g_ciTileSize;
+				tile.m_iWidth = g_ciTileSize;
 
-			if (y == m_TileYCount - 1)
+			if (y == m_iTileY - 1)
 			{
 				int iExtraY = iHeight & (g_ciTileSize - 1);
-				tile.h = iExtraY ? iExtraY : g_ciTileSize;
+				tile.m_iHeight = iExtraY ? iExtraY : g_ciTileSize;
 			}
 			else
-				tile.h = g_ciTileSize;
+				tile.m_iHeight = g_ciTileSize;
 		}
 	}
+
+	return ARTI3D_OK;
 }
 
 void Arti3DDevice::ClearTileMT()
@@ -1671,49 +1593,11 @@ Arti3DResult Arti3DDevice::SetVertexLayout(Arti3DVertexLayout *pLayout)
 
 Arti3DResult Arti3DDevice::InitializeThreads()
 {
-
-	// Initialize Vertex Cache Array For Every Thread!
-	m_ppVertexCache = new Arti3DVertexCache*[m_iThreadNum];
-	
-	if (!m_ppVertexCache)
+	m_pThreads = new Arti3DThread[g_ciMaxThreadNum];
+	if (!m_pThreads)
 		return ARTI3D_OUT_OF_MEMORY;
-	
-	for (uint32_t i = 0; i < m_iThreadNum; ++i)
-	{
-		m_ppVertexCache[i] = new Arti3DVertexCache[g_ciCacheSize];
-	
-		if (!m_ppVertexCache[i])
-			return ARTI3D_OUT_OF_MEMORY;
-	}
-
-	// Initialize Transformed Vertex Array For Every Thread!
-	m_ppTransformedVertex = new Arti3DTransformedVertex*[m_iThreadNum];
-	
-	if (!m_ppTransformedVertex)
-		return ARTI3D_OUT_OF_MEMORY;
-
-	for (uint32_t i = 0; i < m_iThreadNum; ++i)
-	{
-		m_ppTransformedVertex[i] = new Arti3DTransformedVertex[g_ciCacheSize];
-		
-		if (!m_ppTransformedVertex[i])
-			return ARTI3D_OUT_OF_MEMORY;
-	}
-
-	// Initialize Transformed Face Array For Every Thread!
-	m_ppTransformedFace = new Arti3DTransformedFace*[m_iThreadNum];
-	
-	if (!m_ppTransformedFace)
-		return ARTI3D_OUT_OF_MEMORY;
-
-	for (uint32_t i = 0; i < m_iThreadNum; ++i)
-	{
-		m_ppTransformedFace[i] = new Arti3DTransformedFace[g_ciCacheSize];
-
-		if (!m_ppTransformedFace[i])
-			return ARTI3D_OUT_OF_MEMORY;
-	}
-
+	for (int i = 0; i < g_ciMaxThreadNum; ++i)
+		m_pThreads->Create(); 
 	return ARTI3D_OK;
 }
 

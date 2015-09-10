@@ -24,7 +24,7 @@ public:
 
 	void InitTile();
 
-	void IntiTileMT();
+	Arti3DResult IntiTileMT();
 
 	void SetRenderTarget(const RenderTarget& rRT);
 
@@ -70,6 +70,16 @@ public:
 	void SetVertexShader(VertexShader vs);
 	void SetFragmentShader(FragmentShader fs);
 
+	void SetVertexShader(Arti3DVertexShader pfnVS)
+	{
+		mRC.pfnVS = pfnVS;
+	}
+
+	void SetPixelShader(Arti3DPixelShader pfnPS)
+	{
+		mRC.pfnPS = pfnPS;
+	}
+
 	// Render State Related
 	void SetMatrix(Arti3DMatrixType matrixType, const toy::mat4& m);
 	void SetViewport(int x, int y, int width, int height);
@@ -78,8 +88,6 @@ public:
 	void ClearDepthBuffer(float cDepth = 0.0f);
 
 	void Draw3DSolidTriangle(const toy::vec4& p1,const toy::vec4& p2,const toy::vec4& p3,const ToyColor& c);
-
-	void UploadData(GeometryDataType gdt, void *ptr, uint32_t size);
 
 	void LoadCube();
 
@@ -102,13 +110,13 @@ private:
 	
 	// Process Vertex!
 	void ProcessV();
-	void GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DTransformedVertex *out);
-	void PostProcessV(Arti3DTransformedVertex *v);
+	void GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DVSOutput *out);
+	void PostProcessV(Arti3DVSOutput *v);
 
 	// Clipping Functions!
-	inline int CalcClipMask(Arti3DTransformedVertex *v);
-	void ClipTriangle(Arti3DTransformedVertex *v1, Arti3DTransformedVertex *v2, Arti3DTransformedVertex *v3);
-	void InsertTransformedFace(Arti3DTransformedVertex *v1, Arti3DTransformedVertex *v2, Arti3DTransformedVertex *v3);
+	inline int CalcClipMask(Arti3DVSOutput *v);
+	void ClipTriangle(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVSOutput *v3);
+	void InsertTransformedFace(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVSOutput *v3);
 
 	// Process Rasterization!
 	void ProcessR();
@@ -117,9 +125,9 @@ private:
 
 	void RenderFragments();
 
-	void RenderTileFragments(Arti3D_Fragment *frag);
-	void RenderBlockFragments(Arti3D_Fragment *frag);
-	void RenderMaskedFragments(Arti3D_Fragment *frag);
+	void RenderTileFragments(Arti3DFragment *frag);
+	void RenderBlockFragments(Arti3DFragment *frag);
+	void RenderMaskedFragments(Arti3DFragment *frag);
 
 	inline void CalcVaryings(Arti3DTransformedFace* f,int x,int y,__m128 &W0,__m128 &W1,__m128 &WDY,__m128 *V0,__m128 *V1,__m128 *VDY);
 	inline void PreInterpolateVaryings(__m128 &W, __m128 *iV, SSE_Float *oV);
@@ -162,35 +170,26 @@ private:
 	Arti3DVertexBuffer		*m_pVertexBuffer;
 	Arti3DVertexLayout		*m_pVertexLayout;
 
+	Arti3DThread			*m_pThreads;
+
 	uint32_t				m_iThreadNum;
 	uint32_t				m_iWorkingThreadNum;
 
-	Arti3DVertexCache		**m_ppVertexCache;
-	Arti3DTransformedVertex	**m_ppTransformedVertex;
-	Arti3DTransformedFace	**m_ppTransformedFace;
-
-
-	Arti3DVertexCache					vCache[g_ciCacheSize];
-
-	Toy_VertexBuffer			vBuffer;
-	Toy_IndiceBuffer			iBuffer;
-
-	Arti3DTransformedVertex		tvBuffer[g_ciVertexArraySize];
+	Arti3DVertexCache					m_VSOutputCache[g_ciCacheSize];
 
 	std::vector<Arti3DTransformedFace>	faceBuffer;
 
-	std::vector<Arti3D_Tile>		m_aTile;
+	std::vector<Arti3_DTile>		m_aTile;
 
-	Arti3D_Tile					*m_pTiles;
+	Arti3DTile*					m_pTiles;
 
-	int							m_TileXCount;
-	int							m_TileYCount;
-
-	Toy_VertexBuffer	tvb;
+	int							m_iTileX;
+	int							m_iTileY;
 
 	std::ofstream		dFile;
 
 	RenderTarget		mRT;
+
 	// Render State
 	RenderContext	mRC;
 };

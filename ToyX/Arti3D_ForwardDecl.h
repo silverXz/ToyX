@@ -4,6 +4,7 @@
 class Arti3DVertexBuffer;
 class Arti3DVertexLayout;
 class Arti3DIndexBuffer;
-
+class Arti3DThread;
+class Arti3DTile;
 
 #endif

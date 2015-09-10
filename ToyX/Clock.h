@@ -28,4 +28,32 @@ namespace iv
 			return clock();
 		}
 	};
+
+	class Timer
+	{
+	private:
+		double mStart;
+		double mFrequency;
+	public:
+		Timer() :mStart(0.0), mFrequency(0.0)
+		{
+			LARGE_INTEGER li;
+			QueryPerformanceFrequency(&li);
+			mFrequency = (double)li.QuadPart / 1000.0;
+		}
+
+		void Start()
+		{
+			LARGE_INTEGER li;
+			QueryPerformanceCounter(&li);
+			mStart = (double)li.QuadPart;
+		}
+
+		double GetElapse()
+		{
+			LARGE_INTEGER li;
+			QueryPerformanceCounter(&li);
+			return ((double)li.QuadPart - mStart) / mFrequency;
+		}
+	};
 }

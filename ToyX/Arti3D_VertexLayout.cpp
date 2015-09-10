@@ -28,7 +28,7 @@ Arti3DResult Arti3DVertexLayout::Create(uint32_t iAttribute, Arti3DVertexAttribu
 
 	m_iVertexAttribute = iAttribute;
 
-	for (int i = 0; i < iAttribute; ++i)
+	for (uint32_t i = 0; i < iAttribute; ++i)
 	{
 		switch (m_pVertexAttributeFormat[i])
 		{

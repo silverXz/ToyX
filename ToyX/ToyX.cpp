@@ -9,6 +9,10 @@
 #include <stdint.h>
 #include <windows.h>
 
+#define _CRTDBG_MAP_ALLOC
+#include <cstdlib>
+#include <crtdbg.h>
+
 #include "Clock.h"
 #include <xmmintrin.h>	//SSE
 #include <smmintrin.h>	//SSE4
@@ -18,7 +22,6 @@
 
 
 #include "Arti3D_Device.h"
-
 
 using namespace toy;
 
@@ -74,149 +77,133 @@ static void HandleEvent(const SDL_Event &event)
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-	if (SDL_Init(SDL_INIT_VIDEO) != 0)
 	{
-		fprintf_s(stderr, "SDL_Init Failed!\n");
-		return 1;
-	}
-
-// 	SSE_ALIGN float v1[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-// 	double t0 = iv::Clock::GetCurrentTimeMS();
-// 	for (int i = 0; i < 1000000000; ++i)
-// 	{
-// 		int res = _mm_extract_ps(_mm_sqrt_ss(_mm_dp_ps(*(__m128*)v1, *(__m128*)v1, 0xFF)), 0);
-// 		float result = *(float*)(&res);
-// 	}
-// 	double t1 = iv::Clock::GetCurrentTimeMS();
-// 
-// 	printf("SSE : cost : %f,\n", t1 - t0); 
-// 
-// 	t0 = iv::Clock::GetCurrentTimeMS();
-// 	for (int i = 0; i < 1000000000; ++i)
-// 	{
-// 		float s = v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2] + v1[3] * v1[3];
-// 		float res = sqrt(s);
-// 	}
-// 	t1 = iv::Clock::GetCurrentTimeMS();
-// 
-// 	printf("No SSE cost: %f\n", t1 - t0);
-
-	g_Window = SDL_CreateWindow("ToyX", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
-
-	if (!g_Window)
-	{
-		SDL_Quit();
-		fprintf_s(stderr, "SDL_SetVideoMode Failed!\n");
-		return 1;
-	}
-
-	//获取系统高速缓存行的信息
-// 	SYSTEM_LOGICAL_PROCESSOR_INFORMATION slpi;
-// 	DWORD len;
-// 	GetLogicalProcessorInformation(&slpi, &len);
-// 
-//  	WORD cacheSize = slpi.Cache.LineSize;
-// 
-// 	printf("CacheLineSize: %d", cacheSize);
-
-	Arti3DDevice toyRender;
-
- 	SDL_Surface *cb = SDL_GetWindowSurface(g_Window);
-
-	if (!cb)
-	{
-		std::cerr << "Failed to create color buffer!\n";
-		PressAnyKeyToContinue();
-		return -1;
-	}
-
-	SDL_Surface *zb = SDL_CreateRGBSurface(0, WINDOW_WIDTH, WINDOW_HEIGHT, 32, 0, 0, 0, 0);
-
-	if (!zb)
-	{
-		std::cerr << "Failed to create z-buffer!\n";
-		PressAnyKeyToContinue();
-		return -1;
-	}
-
-	SDL_Surface *tb = SDL_CreateRGBSurface(0, 1024, 1024, 32, 0, 0, 0, 0);
-	if (!tb)
-	{
-		std::cerr << "Failed to create texture buffer!\n";
-		PressAnyKeyToContinue();
-		return -1;
-	}
-
-	RenderTarget rt;
-	rt.back_buffer = cb;
-	rt.z_buffer = zb;
-
-	toyRender.SetRenderTarget(rt);
-
-
-	auto past = 0.0;
-
-	auto last = iv::Clock::GetCurrentTimeMS();
-
-	auto nFrame = 0;
-
-	toyRender.SetMatrix(TOY_MATRIX_VIEW, lookAt(vec3(4.0f, 4.0f,4.0f), vec3(0.0f,0.0f,0.0f), vec3(0.0f, 1.0f, 0.0f)));
-	toyRender.SetMatrix(TOY_MATRIX_PROJECTION, perspective(90.0f, (float)WINDOW_WIDTH / WINDOW_HEIGHT, 0.1f, 15.0f));
-	toyRender.SetViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-	toyRender.SetVertexShader(CubeVS);
-	toyRender.SetFragmentShader(CubeFS);
-	toyRender.LoadCube();
-
-	auto rotAngle = 0.0f;
-	const auto rotSpeed = toy::PI / 20.0f;
-
-	while (g_Running)
-	{
-		SDL_Event event;
-		while (SDL_PollEvent(&event))
-			HandleEvent(event);
-
-		double curTime = iv::Clock::GetCurrentTimeMS();
-		
-		past += curTime - last;
-
-		float dt = (curTime - last) * 0.001f;
-		rotAngle += rotSpeed * dt;
-		if (rotAngle > toy::TWOPI)
-			rotAngle -= toy::TWOPI;
-
-		//toyRender.SetMatrix(TOY_MATRIX_VIEW, lookAt(vec3(4.0f + xMove, 4.0f, 4.0f + zMove), vec3(0.0f + xMove, 0.0f, 0.0f + zMove), vec3(0.0f, 1.0f, 0.0f)));
-		toyRender.SetMatrix(TOY_MATRIX_MODEL, toy::rotate(rotAngle, toy::vec3(0.0f, 1.0f, 0.0f)));
-
-		last = curTime;
-
-		if (past >= 1000.0)
+		if (SDL_Init(SDL_INIT_VIDEO) != 0)
 		{
-			std::cout << "FPS:" << nFrame << std::endl;
-			nFrame = 0;
-			past = 0.0;
+			fprintf_s(stderr, "SDL_Init Failed!\n");
+			return 1;
 		}
-		else
-			++nFrame;
 
-		toyRender.Begin();
+		g_Window = SDL_CreateWindow("ToyX", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+
+		if (!g_Window)
+		{
+			SDL_Quit();
+			fprintf_s(stderr, "SDL_SetVideoMode Failed!\n");
+			return 1;
+		}
+
+		//获取系统高速缓存行的信息
+		// 	SYSTEM_LOGICAL_PROCESSOR_INFORMATION slpi;
+		// 	DWORD len;
+		// 	GetLogicalProcessorInformation(&slpi, &len);
+		// 
+		//  	WORD cacheSize = slpi.Cache.LineSize;
+		// 
+		// 	printf("CacheLineSize: %d", cacheSize);
+
+		Arti3DDevice toyRender;
+
+		SDL_Surface *cb = SDL_GetWindowSurface(g_Window);
+
+		if (!cb)
+		{
+			std::cerr << "Failed to create color buffer!\n";
+			PressAnyKeyToContinue();
+			return -1;
+		}
+
+		SDL_Surface *zb = SDL_CreateRGBSurface(0, WINDOW_WIDTH, WINDOW_HEIGHT, 32, 0, 0, 0, 0);
+
+		if (!zb)
+		{
+			std::cerr << "Failed to create z-buffer!\n";
+			PressAnyKeyToContinue();
+			return -1;
+		}
+
+		SDL_Surface *tb = SDL_CreateRGBSurface(0, 1024, 1024, 32, 0, 0, 0, 0);
+		if (!tb)
+		{
+			std::cerr << "Failed to create texture buffer!\n";
+			PressAnyKeyToContinue();
+			return -1;
+		}
+
+		RenderTarget rt;
+		rt.back_buffer = cb;
+		rt.z_buffer = zb;
+
+		toyRender.SetRenderTarget(rt);
 
 
-		toyRender.ClearColorBuffer(ToyColor(0.0f,0.0f,0.0f));
-		toyRender.ClearDepthBuffer();
+		auto past = 0.0;
 
-		//toyRender.DrawMesh();
-		toyRender.DrawMesh_TileBase();
+		auto last = iv::Clock::GetCurrentTimeMS();
 
-		toyRender.End();
+		auto nFrame = 0;
 
-		SDL_UpdateWindowSurface(g_Window);
+		toyRender.SetMatrix(TOY_MATRIX_VIEW, lookAt(vec3(4.0f, 4.0f, 4.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f)));
+		toyRender.SetMatrix(TOY_MATRIX_PROJECTION, perspective(90.0f, (float)WINDOW_WIDTH / WINDOW_HEIGHT, 0.1f, 15.0f));
+		toyRender.SetViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+		toyRender.SetVertexShader(CubeVS);
+		toyRender.SetFragmentShader(CubeFS);
+		toyRender.SetVertexShader(NewCubeVS);
+		toyRender.SetPixelShader(NewCubeFS);
+		toyRender.LoadCube();
+
+		auto rotAngle = 0.0f;
+		const auto rotSpeed = toy::PI / 20.0f;
+
+		while (g_Running)
+		{
+			SDL_Event event;
+			while (SDL_PollEvent(&event))
+				HandleEvent(event);
+
+			double curTime = iv::Clock::GetCurrentTimeMS();
+
+			past += curTime - last;
+
+			float dt = (curTime - last) * 0.001f;
+			rotAngle += rotSpeed * dt;
+			if (rotAngle > toy::TWOPI)
+				rotAngle -= toy::TWOPI;
+
+			//toyRender.SetMatrix(TOY_MATRIX_VIEW, lookAt(vec3(4.0f + xMove, 4.0f, 4.0f + zMove), vec3(0.0f + xMove, 0.0f, 0.0f + zMove), vec3(0.0f, 1.0f, 0.0f)));
+			toyRender.SetMatrix(TOY_MATRIX_MODEL, toy::rotate(rotAngle, toy::vec3(0.0f, 1.0f, 0.0f)));
+
+			last = curTime;
+
+			if (past >= 1000.0)
+			{
+				std::cout << "FPS:" << nFrame << std::endl;
+				nFrame = 0;
+				past = 0.0;
+			}
+			else
+				++nFrame;
+
+			toyRender.Begin();
+
+
+			toyRender.ClearColorBuffer(ToyColor(0.0f, 0.0f, 0.0f));
+			toyRender.ClearDepthBuffer();
+
+			//toyRender.DrawMesh();
+			toyRender.DrawMesh_TileBase();
+
+			toyRender.End();
+
+			SDL_UpdateWindowSurface(g_Window);
 
 
 
+		}
+
+		SDL_Quit();
 	}
-
-	SDL_Quit();
+	_CrtDumpMemoryLeaks();
 
 	return 0;
 
