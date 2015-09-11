@@ -5,6 +5,7 @@
 #include <vector>
 #include <fstream>
 #include <atomic>
+#include <thread>
 #include "ToyMath.h"
 #include "Shader.h"
 #include "Arti3D_Types.h"
@@ -20,11 +21,6 @@ class Arti3DDevice
 public:
 	Arti3DDevice();
 	~Arti3DDevice();
-
-
-	void InitTile();
-
-	Arti3DResult IntiTileMT();
 
 	void SetRenderTarget(const RenderTarget& rRT);
 
@@ -90,12 +86,19 @@ public:
 
 	void LoadCube();
 
+	void StopAllThreads();
+
 	void DrawMesh();
 
 	void DrawMesh_TileBase();
 
+	void DrawMesh_MT();
+
 private:
 
+	void InitTile();
+
+	Arti3DResult InitTileMT();
 
 	// For Debug Use.
 	void DrawTileGrid();
@@ -170,6 +173,8 @@ private:
 	Arti3DVertexLayout		*m_pVertexLayout;
 
 	Arti3DThread			*m_pThreads;
+
+	std::vector<std::thread>	m_vThread;
 	
 	Arti3DVertexCache					m_VSOutputCache[g_ciCacheSize];
 
@@ -188,6 +193,9 @@ private:
 
 	std::atomic<uint32_t>		m_iStage;
 
+	int							m_iWidth;
+	int							m_iHeight;
+
 	int							m_iTileX;
 	int							m_iTileY;
 
@@ -197,4 +205,6 @@ private:
 
 	// Render State
 	RenderContext	mRC;
+
+	bool						m_bThreadStop;
 };

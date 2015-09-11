@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <atomic>
 #include <thread>
+#include <chrono>
 #include "Arti3D_Thread.h"
 #include "Arti3D_Device.h"
 #include "Arti3D_IndexBuffer.h"
@@ -37,7 +38,7 @@ void Arti3DThread::ClearCache()
 			m_pVertexCache[i].Clear();
 	}
 }
-Arti3DResult Arti3DThread::Create(Arti3DDevice *pParent)
+Arti3DResult Arti3DThread::Create(Arti3DDevice *pParent, uint32_t iThread)
 {
 	m_pVertexCache = new Arti3DVertexCache[g_ciCacheSize];
 	if (!m_pVertexCache)
@@ -47,20 +48,49 @@ Arti3DResult Arti3DThread::Create(Arti3DDevice *pParent)
 	if (!m_pTransformedFace)
 		return ARTI3D_OUT_OF_MEMORY;
 
+	m_iThread = iThread;
 	m_pParent = pParent;
 
 	return ARTI3D_OK;
 }
 
-unsigned int Arti3DThread::WorkFunc(void *pParam)
+void Arti3DThread::WorkFunc(Arti3DThread *pThread)
 {
-	Arti3DThread *pThread = (Arti3DThread*)pParam;
 	Arti3DDevice *pDev = pThread->m_pParent;
 
 	while (pThread->m_pParent->m_iStage == 1)
 		std::this_thread::yield();
-	while (1)
+
+	printf("Thread #%d Passed Waiting..\n",pThread->m_iThread);
+
+	while (!pDev->m_bThreadStop)
 	{
+#ifdef _DEBUG
+		
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+		// Till Now, All Triangle Has Been Processed And Added To JobQueue.
+		// Next, We What To Fetch Tile From JobQueue And Rasterize Tile To Generate Fragments.
+		// But!!!!! What Have To Wait For All Thread Finishing What We Have Done Now.
+
+		// All Thread Are Done For The First Stage!
+		if (--pDev->m_iWorkingThread == 0)
+		{
+			printf("All Threads Finishes Stage 0.\n");
+			pDev->m_iWorkingThread = g_ciMaxThreadNum;
+			pDev->m_iStage = 1;
+		}
+		while (pDev->m_iStage == 0)
+			std::this_thread::yield();
+
+		// OK,Then.Let's Take Things To The Next Level! 
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+
+		if(--pDev->m_iWorkingThread == 0)
+			printf("All Threads Finishes Stage 1.\n");
+		
+		while (pDev->m_iStage == 1)
+			std::this_thread::yield();
+#else
 		pThread->ProcessVertex();
 		pThread->PreProcessTile();
 
@@ -99,9 +129,10 @@ unsigned int Arti3DThread::WorkFunc(void *pParam)
 			pDev->m_iWorkingThread = g_ciMaxThreadNum;
 		while (pDev->m_iStage == 1)
 			std::this_thread::yield();
+#endif
 	}
-
-	return 0;
+	printf("Thread #%d returns.\n", pThread->m_iThread);
+	return;
 }
 
 void Arti3DThread::ProcessVertex()

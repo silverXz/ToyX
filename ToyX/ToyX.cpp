@@ -9,9 +9,18 @@
 #include <stdint.h>
 #include <windows.h>
 
+#ifdef _DEBUG
+#ifndef DBG_NEW
+#define DBG_NEW new ( _NORMAL_BLOCK , __FILE__ , __LINE__ )
+#define new DBG_NEW
+#endif
+#endif  // _DEBUG
+
 #define _CRTDBG_MAP_ALLOC
 #include <cstdlib>
 #include <crtdbg.h>
+
+
 
 #include "Clock.h"
 #include <xmmintrin.h>	//SSE
@@ -78,7 +87,7 @@ static void HandleEvent(const SDL_Event &event)
 	}
 }
 
-Arti3DResult CreateAndInitializeDevice(Arti3DDevice **io_pArti3DDev)
+Arti3DResult CreateAndInitializeDevice(Arti3DDevice **io_pArti3DDev,Arti3DDeviceParameter *pA3DDeviceParameters)
 {
 	if (!io_pArti3DDev)
 		return ARTI3D_INVALID_PARAMETER;
@@ -87,6 +96,8 @@ Arti3DResult CreateAndInitializeDevice(Arti3DDevice **io_pArti3DDev)
 	
 	if (!*io_pArti3DDev)
 		return ARTI3D_OUT_OF_MEMORY;
+
+	(*io_pArti3DDev)->InitializeDevice(*pA3DDeviceParameters);
 
 	SDL_Surface *cb = SDL_GetWindowSurface(g_Window);
 	if (!cb)
@@ -187,8 +198,13 @@ int _tmain(int argc, _TCHAR* argv[])
 		return 1;
 	}
 
+	Arti3DDeviceParameter a3dDeviceParameter;
+	a3dDeviceParameter.bMultiThread = true;
+	a3dDeviceParameter.iWidth = WINDOW_WIDTH;
+	a3dDeviceParameter.iHeight = WINDOW_HEIGHT;
+
 	Arti3DDevice *pArti3DDev = nullptr;
-	CreateAndInitializeDevice(&pArti3DDev);
+	CreateAndInitializeDevice(&pArti3DDev,&a3dDeviceParameter);
 
 
 	auto past = 0.0;
@@ -208,7 +224,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		double curTime = iv::Clock::GetCurrentTimeMS();
 
 		past += curTime - last;
-		float dt = (curTime - last) * 0.001f;
+		auto dt = (curTime - last) * 0.001;
 		rotAngle += rotSpeed * dt;
 		if (rotAngle > toy::TWOPI)
 			rotAngle -= toy::TWOPI;
@@ -229,7 +245,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		pArti3DDev->Begin();
 		pArti3DDev->ClearColorBuffer(ToyColor(0.0f, 0.0f, 0.0f));
 		pArti3DDev->ClearDepthBuffer();
-		pArti3DDev->DrawMesh_TileBase();
+		//pArti3DDev->DrawMesh_TileBase();
+		pArti3DDev->DrawMesh_MT();
 		pArti3DDev->End();
 
 		SDL_UpdateWindowSurface(g_Window);

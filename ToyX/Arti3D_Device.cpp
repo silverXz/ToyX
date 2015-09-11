@@ -24,7 +24,8 @@ Arti3DDevice::Arti3DDevice() : m_pIndexBuffer(nullptr),
 	m_iJobEnd(0),
 	m_iJobStart2(0),
 	m_iWorkingThread(0),
-	m_iStage(1)
+	m_iStage(1),
+	m_bThreadStop(false)
 {
 	dFile.open("Debug.txt", std::ios::ate);
 }
@@ -32,6 +33,8 @@ Arti3DDevice::Arti3DDevice() : m_pIndexBuffer(nullptr),
 Arti3DDevice::~Arti3DDevice()
 {
 	dFile.close();
+
+	StopAllThreads();
 
 	SAFE_DELETE(m_pIndexBuffer);
 	SAFE_DELETE(m_pVertexBuffer);
@@ -135,7 +138,7 @@ void Arti3DDevice::Draw3DLines(const toy::vec4& p1, const toy::vec4 p2, uint32_t
 	clip2.x *= invW2;
 	clip2.y *= invW2;
 	clip2.z *= invW2;
-	Draw2DLines(clip1.x, clip1.y, clip2.x, clip2.y, color);
+	Draw2DLines(iRound(clip1.x), iRound(clip1.y), iRound(clip2.x), iRound(clip2.y), color);
 }
 
 void Arti3DDevice::Draw3DSolidTriangle(const toy::vec4& p1, const toy::vec4& p2, const toy::vec4& p3, const ToyColor& c)
@@ -233,8 +236,6 @@ void Arti3DDevice::End()
 void Arti3DDevice::SetRenderTarget(const RenderTarget &rRT)
 {
 	mRT = rRT;
-	InitTile();
-	IntiTileMT();
 }
 
 
@@ -947,11 +948,9 @@ __m128i Arti3DDevice::ConvertColorFormat(SSE_Color3 &src)
 
 void Arti3DDevice::InitTile()
 {
-	int iWidth = mRT.back_buffer->w;
-	int iHeight = mRT.back_buffer->h;
 
-	m_iTileX = (iWidth + g_ciTileSize - 1) >> g_ciTileSizeShift;
-	m_iTileY = (iHeight + g_ciTileSize - 1) >> g_ciTileSizeShift;
+	m_iTileX = (m_iWidth + g_ciTileSize - 1) >> g_ciTileSizeShift;
+	m_iTileY = (m_iHeight + g_ciTileSize - 1) >> g_ciTileSizeShift;
 
 	m_aTile.resize(m_iTileX * m_iTileY);
 
@@ -964,7 +963,7 @@ void Arti3DDevice::InitTile()
 			tile.y = y * g_ciTileSize;
 			if (x == m_iTileX - 1)
 			{
-				int iExtraX = iWidth & (g_ciTileSize - 1);
+				int iExtraX = m_iWidth & (g_ciTileSize - 1);
 				tile.w = iExtraX ? iExtraX : g_ciTileSize;
 			}
 			else
@@ -972,7 +971,7 @@ void Arti3DDevice::InitTile()
 
 			if (y == m_iTileY - 1)
 			{
-				int iExtraY = iHeight & (g_ciTileSize - 1);
+				int iExtraY = m_iHeight & (g_ciTileSize - 1);
 				tile.h = iExtraY ? iExtraY : g_ciTileSize;
 			}
 			else
@@ -1514,8 +1513,14 @@ void Arti3DDevice::RenderMaskedFragments(Arti3DFragment *frag)
 
 Arti3DResult Arti3DDevice::InitializeDevice(Arti3DDeviceParameter deviceParam)
 {
+	m_iWidth = deviceParam.iWidth;
+	m_iHeight = deviceParam.iHeight;
+
 	if (deviceParam.bMultiThread)
 		InitializeThreads();
+
+	InitTile();
+	InitTileMT();
 	return ARTI3D_OK;
 }
 
@@ -1523,13 +1528,11 @@ void Arti3DDevice::ReleaseResource()
 {
 }
 
-Arti3DResult Arti3DDevice::IntiTileMT()
+Arti3DResult Arti3DDevice::InitTileMT()
 {
-	int iWidth = mRT.back_buffer->w;
-	int iHeight = mRT.back_buffer->h;
 
-	m_iTileX = (iWidth + g_ciTileSize - 1) >> g_ciTileSizeShift;
-	m_iTileY = (iHeight + g_ciTileSize - 1) >> g_ciTileSizeShift;
+	m_iTileX = (m_iWidth + g_ciTileSize - 1) >> g_ciTileSizeShift;
+	m_iTileY = (m_iHeight + g_ciTileSize - 1) >> g_ciTileSizeShift;
 
 	uint32_t iTotal = m_iTileX * m_iTileY;
 
@@ -1549,7 +1552,7 @@ Arti3DResult Arti3DDevice::IntiTileMT()
 			tile.m_iY = y * g_ciTileSize;
 			if (x == m_iTileX - 1)
 			{
-				int iExtraX = iWidth & (g_ciTileSize - 1);
+				int iExtraX = m_iWidth & (g_ciTileSize - 1);
 				tile.m_iWidth = iExtraX ? iExtraX : g_ciTileSize;
 			}
 			else
@@ -1557,7 +1560,7 @@ Arti3DResult Arti3DDevice::IntiTileMT()
 
 			if (y == m_iTileY - 1)
 			{
-				int iExtraY = iHeight & (g_ciTileSize - 1);
+				int iExtraY = m_iHeight & (g_ciTileSize - 1);
 				tile.m_iHeight = iExtraY ? iExtraY : g_ciTileSize;
 			}
 			else
@@ -1566,7 +1569,7 @@ Arti3DResult Arti3DDevice::IntiTileMT()
 	}
 
 	// Allocate Space For Job Queue
-	m_pJobQueue = new uint32_t[iTotal];
+	m_pJobQueue = new uint32_t[m_iTileX * m_iTileY];
 	if (!m_pJobQueue)
 		return ARTI3D_OUT_OF_MEMORY;
 	m_iJobStart = 0;
@@ -1596,7 +1599,13 @@ Arti3DResult Arti3DDevice::InitializeThreads()
 	if (!m_pThreads)
 		return ARTI3D_OUT_OF_MEMORY;
 	for (int i = 0; i < g_ciMaxThreadNum; ++i)
-		m_pThreads->Create(this); 
+		m_pThreads[i].Create(this,i); 
+
+	m_iStage = 1;
+
+	for (int i = 0; i < g_ciMaxThreadNum; ++i)
+		m_vThread.push_back(std::thread(Arti3DThread::WorkFunc, &m_pThreads[i]));
+
 	return ARTI3D_OK;
 }
 
@@ -1667,5 +1676,29 @@ Arti3DResult Arti3DDevice::SetIndexBuffer(Arti3DIndexBuffer *pIndexBuffer)
 Arti3DResult Arti3DDevice::PreRender()
 {
 	return ARTI3D_OK;
+}
+
+void Arti3DDevice::StopAllThreads()
+{
+	m_bThreadStop = true;
+	for (auto& x : m_vThread)
+		x.join();
+	printf("All Thread Exited.\n");
+}
+
+void Arti3DDevice::DrawMesh_MT()
+{
+	// Clear Buffers, Local Or Global.
+
+
+	// Activate all threads
+	m_iStage = 0;
+	m_iWorkingThread = g_ciMaxThreadNum;
+
+	// Wait For This Round To End.
+	while (!(m_iStage == 1 && m_iWorkingThread == 0))
+		std::this_thread::yield();
+	std::this_thread::sleep_for(std::chrono::seconds(1));
+	printf("All Threads Finishes This Round!\n");
 }
 

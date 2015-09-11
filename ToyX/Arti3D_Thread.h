@@ -18,11 +18,11 @@ protected:
 public:
 	void ClearCache();
 
-	Arti3DResult Create(Arti3DDevice *pParent);
+	Arti3DResult Create(Arti3DDevice *pParent,uint32_t iThread);
 
 	void DistributeWorkLoad(uint32_t iThread, uint32_t iStart, uint32_t iEnd);
 
-	static unsigned int WorkFunc(void *pParam);
+	static void WorkFunc(Arti3DThread *pThread);
 
 private:
 	
