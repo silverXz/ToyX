@@ -8,7 +8,8 @@ Arti3DTile::Arti3DTile() : m_iX(0),
 	m_iHeight(0),
 	m_ppFaceIndexBuffer(nullptr),
 	m_pIndexBufferSize(nullptr),
-	m_ppTileCoverage(nullptr)
+	m_ppTileCoverage(nullptr),
+	m_bFinishedRasterization(false)
 {
 
 }
@@ -59,5 +60,19 @@ Arti3DResult Arti3DTile::Create()
 			return ARTI3D_OUT_OF_MEMORY;
 	}
 
+	m_bAddedToJobQueue.clear();
+
 	return ARTI3D_OK;
+}
+
+void Arti3DTile::SetReadyForFragmentProcessing()
+{
+	m_bFinishedRasterization = true;
+}
+
+void Arti3DTile::Clear()
+{
+	memset(m_pIndexBufferSize, 0, sizeof(uint32_t)*g_ciMaxThreadNum);
+	m_bAddedToJobQueue.clear();
+	m_bFinishedRasterization = false;
 }

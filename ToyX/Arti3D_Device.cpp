@@ -18,9 +18,13 @@ Arti3DDevice::Arti3DDevice() : m_pIndexBuffer(nullptr),
 	m_pVertexBuffer(nullptr),
 	m_pVertexLayout(nullptr),
 	m_pThreads(nullptr),
-	m_iThreadNum(g_ciMaxThreadNum),
-	m_iWorkingThreadNum(0),
-	m_pTiles(nullptr)
+	m_pTiles(nullptr),
+	m_pJobQueue(nullptr),
+	m_iJobStart(0),
+	m_iJobEnd(0),
+	m_iJobStart2(0),
+	m_iWorkingThread(0),
+	m_iStage(1)
 {
 	dFile.open("Debug.txt", std::ios::ate);
 }
@@ -34,6 +38,7 @@ Arti3DDevice::~Arti3DDevice()
 	SAFE_DELETE(m_pVertexLayout);
 	SAFE_DELETE_ARRAY(m_pThreads);
 	SAFE_DELETE_ARRAY(m_pTiles);
+	SAFE_DELETE_ARRAY(m_pJobQueue);
 }
 
 
@@ -554,18 +559,6 @@ void Arti3DDevice::DrawMesh_TileBase()
 }
 
 
-void Arti3DDevice::SetVertexShader(VertexShader vs)
-{
-	mRC.vs = vs;
-}
-
-
-void Arti3DDevice::SetFragmentShader(FragmentShader fs)
-{
-	mRC.fs = fs;
-}
-
-
 void Arti3DDevice::ComputeGradient(float C, float di21, float di31, float dx21, float dy21, float dx31, float dy31, toy::vec2 *g)
 {
 	float A = di21 * dy31 - di31 * dy21;
@@ -682,8 +675,8 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 				// Process blockSize pixels every time, do it blockSize times.
 				for (int iy = 0; iy < blockSize; iy++)
 				{
-					SSE_ALIGN PS_PARAM parm;
-					parm.uniforms = &mRC.globals;
+					SSE_ALIGN Arti3DPSParam parm;
+
 					__m128 dbquad;
 					__m128i oquad, nquad, dbmask;
 					uint32_t *cbTileLine;
@@ -705,7 +698,7 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 						PreInterpolateVaryings(W0, V0, parm.Varyings);
 
 
-						mRC.fs(&parm);
+						mRC.pfnPS(&parm);
 
 						nquad = ConvertColorFormat(parm.Output);
 
@@ -733,7 +726,7 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 					{
 						PreInterpolateVaryings(W1, V1, parm.Varyings);
 
-						mRC.fs(&parm);
+						mRC.pfnPS(&parm);
 
 						nquad = ConvertColorFormat(parm.Output);
 
@@ -794,8 +787,8 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 				
 				__m128i cMask = _mm_and_si128(_mm_and_si128(msk1, msk2), msk3);
 			
-				SSE_ALIGN PS_PARAM parm;
-				parm.uniforms = &mRC.globals;
+				SSE_ALIGN Arti3DPSParam parm;
+
 				__m128 dbquad;
 				__m128i oquad, nquad, dbmask;
 				uint32_t *cbTileLine = nullptr;
@@ -822,7 +815,7 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 						parm.Varyings[f + 1] = _mm_mul_ps(w, V0[f + 1]);
 					}
 
-					mRC.fs(&parm);
+					mRC.pfnPS(&parm);
 
 					nquad = ConvertColorFormat(parm.Output);
 
@@ -866,7 +859,7 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 						parm.Varyings[f + 1] = _mm_mul_ps(w, V1[f + 1]);
 					}
 
-					mRC.fs(&parm);
+					mRC.pfnPS(&parm);
 
 					nquad = ConvertColorFormat(parm.Output);
 
@@ -1106,7 +1099,7 @@ void Arti3DDevice::RasterizeTile()
 				Arti3DFragment frag;
 				frag.x = tile.x;
 				frag.y = tile.y;
-				frag.coverType = FC_TILE;
+				frag.coverType = ARTI3D_FC_TILE;
 				frag.faceID = tf.id;
 				tile.aFragment.push_back(frag);
 				continue;
@@ -1181,7 +1174,7 @@ void Arti3DDevice::RasterizeTile()
 						Arti3DFragment frag;
 						frag.x = x;
 						frag.y = y;
-						frag.coverType = FC_BLOCK;
+						frag.coverType = ARTI3D_FC_BLOCK;
 						frag.faceID = tf.id;
 						tile.aFragment.push_back(frag);
 						continue;
@@ -1229,7 +1222,7 @@ void Arti3DDevice::RasterizeTile()
 							frag.y = y + k;
 							frag.faceID = tf.id;
 							frag.mask = im;
-							frag.coverType = FC_FRAGMENT;
+							frag.coverType = ARTI3D_FC_FRAGMENT;
 							tile.aFragment.push_back(frag);
 						}
 
@@ -1254,7 +1247,7 @@ void Arti3DDevice::RasterizeTile()
 							frag.y = y + k;
 							frag.faceID = tf.id;
 							frag.mask = im;
-							frag.coverType = FC_FRAGMENT;
+							frag.coverType = ARTI3D_FC_FRAGMENT;
 							tile.aFragment.push_back(frag);
 						}
 						B1 = _mm_sub_epi32(B1, offsetDDX21);
@@ -1277,13 +1270,13 @@ void Arti3DDevice::RenderFragments()
 		{
 			switch (frag.coverType)
 			{
-			case FC_TILE:
+			case ARTI3D_FC_TILE:
 				RenderTileFragments(&frag);
 				break;
-			case FC_BLOCK:
+			case ARTI3D_FC_BLOCK:
 				RenderBlockFragments(&frag);
 				break;
-			case FC_FRAGMENT:
+			case ARTI3D_FC_FRAGMENT:
 				RenderMaskedFragments(&frag);
 				break;
 			default:
@@ -1313,8 +1306,8 @@ void Arti3DDevice::RenderTileFragments(Arti3DFragment *frag)
 		for (int y = frag->y; y < frag->y + g_ciTileSize; ++y)
 		{
 			CalcVaryings(f, x, y, W0, W1, WDY, V0, V1, VDY);
-			SSE_ALIGN PS_PARAM ps_param;
-			ps_param.uniforms = &mRC.globals;
+			SSE_ALIGN Arti3DPSParam ps_param;
+
 			__m128	dbquad;
 			__m128i dbmask, oquad, nquad;
 			uint32_t	*colorTileLine = colorBuffer;
@@ -1330,7 +1323,7 @@ void Arti3DDevice::RenderTileFragments(Arti3DFragment *frag)
 			if (_mm_movemask_ps(*(__m128*)&dbmask))
 			{
 				PreInterpolateVaryings(W0, V0, ps_param.Varyings);
-				mRC.fs(&ps_param);
+				mRC.pfnPS(&ps_param);
 
 				nquad = ConvertColorFormat(ps_param.Output);
 
@@ -1354,7 +1347,7 @@ void Arti3DDevice::RenderTileFragments(Arti3DFragment *frag)
 			{
 				PreInterpolateVaryings(W1, V1, ps_param.Varyings);
 
-				mRC.fs(&ps_param);
+				mRC.pfnPS(&ps_param);
 
 				nquad = ConvertColorFormat(ps_param.Output);
 
@@ -1389,8 +1382,8 @@ void Arti3DDevice::RenderBlockFragments(Arti3DFragment *frag)
 	for (int y = frag->y; y < frag->y + g_ciBlockSize; ++y)
 	{
 		CalcVaryings(f, frag->x, y, W0, W1, WDY, V0, V1, VDY);
-		SSE_ALIGN PS_PARAM ps_param;
-		ps_param.uniforms = &mRC.globals;
+		SSE_ALIGN Arti3DPSParam ps_param;
+
 		__m128	dbquad;
 		__m128i dbmask, oquad, nquad;
 		uint32_t	*colorTileLine = colorBuffer;
@@ -1406,7 +1399,7 @@ void Arti3DDevice::RenderBlockFragments(Arti3DFragment *frag)
 		if (_mm_movemask_ps(*(__m128*)&dbmask))
 		{
 			PreInterpolateVaryings(W0, V0, ps_param.Varyings);
-			mRC.fs(&ps_param);
+			mRC.pfnPS(&ps_param);
 			
 			nquad = ConvertColorFormat(ps_param.Output);
 
@@ -1430,7 +1423,7 @@ void Arti3DDevice::RenderBlockFragments(Arti3DFragment *frag)
 		{
 			PreInterpolateVaryings(W1, V1, ps_param.Varyings);
 
-			mRC.fs(&ps_param);
+			mRC.pfnPS(&ps_param);
 
 			nquad = ConvertColorFormat(ps_param.Output);
 
@@ -1486,8 +1479,7 @@ void Arti3DDevice::RenderMaskedFragments(Arti3DFragment *frag)
 
 	CalcVaryings(f, frag->x, frag->y, W0, W1, WDY, V0, V1, VDY);
 
-	SSE_ALIGN PS_PARAM ps_param;
-	ps_param.uniforms = &mRC.globals;
+	SSE_ALIGN Arti3DPSParam ps_param;
 	
 	__m128	dbquad;
 	__m128i cbmask,dbmask, oquad, nquad;
@@ -1507,7 +1499,7 @@ void Arti3DDevice::RenderMaskedFragments(Arti3DFragment *frag)
 	if (_mm_movemask_ps(*(__m128*)&dbmask))
 	{
 		PreInterpolateVaryings(W0, V0, ps_param.Varyings);
-		mRC.fs(&ps_param);
+		mRC.pfnPS(&ps_param);
 
 		nquad = ConvertColorFormat(ps_param.Output);
 
@@ -1572,6 +1564,13 @@ Arti3DResult Arti3DDevice::IntiTileMT()
 				tile.m_iHeight = g_ciTileSize;
 		}
 	}
+
+	// Allocate Space For Job Queue
+	m_pJobQueue = new uint32_t[iTotal];
+	if (!m_pJobQueue)
+		return ARTI3D_OUT_OF_MEMORY;
+	m_iJobStart = 0;
+	m_iJobEnd = 0;
 
 	return ARTI3D_OK;
 }
@@ -1662,6 +1661,11 @@ Arti3DResult Arti3DDevice::SetIndexBuffer(Arti3DIndexBuffer *pIndexBuffer)
 	if (!pIndexBuffer)
 		return ARTI3D_NULL_PARAMETER;
 	m_pIndexBuffer = pIndexBuffer;
+	return ARTI3D_OK;
+}
+
+Arti3DResult Arti3DDevice::PreRender()
+{
 	return ARTI3D_OK;
 }
 

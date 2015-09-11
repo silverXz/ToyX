@@ -4,7 +4,7 @@
 #include "stdafx.h"
 
 
-#include <SDL2/SDL.h>
+#include <SDL/SDL.h>
 #include <memory.h>
 #include <stdint.h>
 #include <windows.h>
@@ -22,6 +22,9 @@
 
 
 #include "Arti3D_Device.h"
+#include "Arti3D_VertexLayout.h"
+#include "Arti3D_VertexBuffer.h"
+#include "Arti3D_IndexBuffer.h"
 
 using namespace toy;
 
@@ -75,125 +78,166 @@ static void HandleEvent(const SDL_Event &event)
 	}
 }
 
+Arti3DResult CreateAndInitializeDevice(Arti3DDevice **io_pArti3DDev)
+{
+	if (!io_pArti3DDev)
+		return ARTI3D_INVALID_PARAMETER;
+
+	*io_pArti3DDev = new Arti3DDevice;
+	
+	if (!*io_pArti3DDev)
+		return ARTI3D_OUT_OF_MEMORY;
+
+	SDL_Surface *cb = SDL_GetWindowSurface(g_Window);
+	if (!cb)
+		return ARTI3D_OUT_OF_MEMORY;
+
+	SDL_Surface *zb = SDL_CreateRGBSurface(0, WINDOW_WIDTH, WINDOW_HEIGHT, 32, 0, 0, 0, 0);
+	if (!zb)
+		return ARTI3D_OUT_OF_MEMORY;
+
+	SDL_Surface *tb = SDL_CreateRGBSurface(0, 1024, 1024, 32, 0, 0, 0, 0);
+	if (!tb)
+		return ARTI3D_OUT_OF_MEMORY;
+
+	RenderTarget rt;
+	rt.back_buffer = cb;
+	rt.z_buffer = zb;
+
+	(*io_pArti3DDev)->SetRenderTarget(rt);
+	
+	(*io_pArti3DDev)->SetMatrix(TOY_MATRIX_VIEW, lookAt(vec3(4.0f, 4.0f, 4.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f)));
+	(*io_pArti3DDev)->SetMatrix(TOY_MATRIX_PROJECTION, perspective(90.0f, (float)WINDOW_WIDTH / WINDOW_HEIGHT, 0.1f, 15.0f));
+	(*io_pArti3DDev)->SetViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+	(*io_pArti3DDev)->SetVertexShader(NewCubeVS);
+	(*io_pArti3DDev)->SetPixelShader(NewCubeFS);
+
+	// Load Obj.
+
+	const float len = 2.0f;
+
+	Arti3DVertexLayout *pVertexLayout = nullptr;
+	Arti3DVertexAttributeFormat vaf[] = { ARTI3D_VAF_VECTOR4, ARTI3D_VAF_VECTOR4 };
+	(*io_pArti3DDev)->CreateVertexLayout(&pVertexLayout, 2, vaf);
+	(*io_pArti3DDev)->SetVertexLayout(pVertexLayout);
+
+	Arti3DVertexBuffer *pVertexBuffer = nullptr;
+
+	uint32_t iFloat = pVertexLayout->iGetFloats();
+	uint32_t iStride = iFloat * sizeof(float);
+	const uint32_t iVertex = 8;
+	(*io_pArti3DDev)->CreateVertexBuffer(&pVertexBuffer, iVertex * iStride);
+
+	// Upload Cube Data To VertexBuffer
+	std::vector<std::vector<float>> xv{
+		{ -len, len, len, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f },
+		{ len, len, len, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f },
+		{ len, len, -len, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f },
+		{ -len, len, -len, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f },
+		{ -len, -len, len, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+		{ len, -len, len, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f },
+		{ len, -len, -len, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f },
+		{ -len, -len, -len, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f }
+	};
+
+	for (int i = 0; i < iVertex; ++i)
+	{
+		void *pDest = nullptr;
+		pVertexBuffer->GetPointer(i * iStride, &pDest);
+		memcpy(pDest, &xv[i][0], iStride);
+	}
+
+	(*io_pArti3DDev)->SetVertexBuffer(pVertexBuffer);
+
+	Arti3DIndexBuffer *pIndexBuffer = nullptr;
+	(*io_pArti3DDev)->CreateIndexBuffer(&pIndexBuffer, 36 * sizeof(uint32_t), ARTI3D_INDEX32);
+	uint32_t xid[] = { 0, 1, 2, 0, 2, 3, 0, 4, 5, 0, 5, 1, 1, 5, 6, 1, 6, 2, 4, 7, 6, 4, 6, 5, 0, 3, 7, 0, 7, 4, 3, 2, 6, 3, 6, 7 };
+	void *pDest = nullptr;
+	pIndexBuffer->GetPointer(0, &pDest);
+	memcpy(pDest, xid, sizeof(xid));
+
+	(*io_pArti3DDev)->SetIndexBuffer(pIndexBuffer);
+
+	return ARTI3D_OK;
+}
+
+void DestroyDevice(Arti3DDevice **io_pArti3DDev)
+{
+	if (!io_pArti3DDev)
+		return;
+	if (*io_pArti3DDev)
+		delete *io_pArti3DDev;
+	*io_pArti3DDev = nullptr;
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
+	if (SDL_Init(SDL_INIT_VIDEO) != 0)
 	{
-		if (SDL_Init(SDL_INIT_VIDEO) != 0)
-		{
-			fprintf_s(stderr, "SDL_Init Failed!\n");
-			return 1;
-		}
-
-		g_Window = SDL_CreateWindow("ToyX", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
-
-		if (!g_Window)
-		{
-			SDL_Quit();
-			fprintf_s(stderr, "SDL_SetVideoMode Failed!\n");
-			return 1;
-		}
-
-		Arti3DDevice toyRender;
-
-		SDL_Surface *cb = SDL_GetWindowSurface(g_Window);
-
-		if (!cb)
-		{
-			std::cerr << "Failed to create color buffer!\n";
-			PressAnyKeyToContinue();
-			return -1;
-		}
-
-		SDL_Surface *zb = SDL_CreateRGBSurface(0, WINDOW_WIDTH, WINDOW_HEIGHT, 32, 0, 0, 0, 0);
-
-		if (!zb)
-		{
-			std::cerr << "Failed to create z-buffer!\n";
-			PressAnyKeyToContinue();
-			return -1;
-		}
-
-		SDL_Surface *tb = SDL_CreateRGBSurface(0, 1024, 1024, 32, 0, 0, 0, 0);
-		if (!tb)
-		{
-			std::cerr << "Failed to create texture buffer!\n";
-			PressAnyKeyToContinue();
-			return -1;
-		}
-
-		RenderTarget rt;
-		rt.back_buffer = cb;
-		rt.z_buffer = zb;
-
-		toyRender.SetRenderTarget(rt);
-
-
-		auto past = 0.0;
-
-		auto last = iv::Clock::GetCurrentTimeMS();
-
-		auto nFrame = 0;
-
-		toyRender.SetMatrix(TOY_MATRIX_VIEW, lookAt(vec3(4.0f, 4.0f, 4.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f)));
-		toyRender.SetMatrix(TOY_MATRIX_PROJECTION, perspective(90.0f, (float)WINDOW_WIDTH / WINDOW_HEIGHT, 0.1f, 15.0f));
-		toyRender.SetViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-		toyRender.SetVertexShader(CubeVS);
-		toyRender.SetFragmentShader(CubeFS);
-		toyRender.SetVertexShader(NewCubeVS);
-		toyRender.SetPixelShader(NewCubeFS);
-		toyRender.LoadCube();
-
-		auto rotAngle = 0.0f;
-		const auto rotSpeed = toy::PI / 20.0f;
-
-		while (g_Running)
-		{
-			SDL_Event event;
-			while (SDL_PollEvent(&event))
-				HandleEvent(event);
-
-			double curTime = iv::Clock::GetCurrentTimeMS();
-
-			past += curTime - last;
-
-			float dt = (curTime - last) * 0.001f;
-			rotAngle += rotSpeed * dt;
-			if (rotAngle > toy::TWOPI)
-				rotAngle -= toy::TWOPI;
-
-			//toyRender.SetMatrix(TOY_MATRIX_VIEW, lookAt(vec3(4.0f + xMove, 4.0f, 4.0f + zMove), vec3(0.0f + xMove, 0.0f, 0.0f + zMove), vec3(0.0f, 1.0f, 0.0f)));
-			toyRender.SetMatrix(TOY_MATRIX_MODEL, toy::rotate(rotAngle, toy::vec3(0.0f, 1.0f, 0.0f)));
-
-			last = curTime;
-
-			if (past >= 1000.0)
-			{
-				std::cout << "FPS:" << nFrame << std::endl;
-				nFrame = 0;
-				past = 0.0;
-			}
-			else
-				++nFrame;
-
-			toyRender.Begin();
-
-
-			toyRender.ClearColorBuffer(ToyColor(0.0f, 0.0f, 0.0f));
-			toyRender.ClearDepthBuffer();
-
-			//toyRender.DrawMesh();
-			toyRender.DrawMesh_TileBase();
-
-			toyRender.End();
-
-			SDL_UpdateWindowSurface(g_Window);
-
-
-
-		}
-
-		SDL_Quit();
+		fprintf_s(stderr, "SDL_Init Failed!\n");
+		return 1;
 	}
+
+	g_Window = SDL_CreateWindow("ToyX", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+
+	if (!g_Window)
+	{
+		SDL_Quit();
+		fprintf_s(stderr, "SDL_SetVideoMode Failed!\n");
+		return 1;
+	}
+
+	Arti3DDevice *pArti3DDev = nullptr;
+	CreateAndInitializeDevice(&pArti3DDev);
+
+
+	auto past = 0.0;
+
+	auto last = iv::Clock::GetCurrentTimeMS();
+
+	auto nFrame = 0;
+
+	auto rotAngle = 0.0f;
+	const auto rotSpeed = toy::PI / 20.0f;
+
+	while (g_Running)
+	{
+		SDL_Event event;
+		while (SDL_PollEvent(&event))
+			HandleEvent(event);
+		double curTime = iv::Clock::GetCurrentTimeMS();
+
+		past += curTime - last;
+		float dt = (curTime - last) * 0.001f;
+		rotAngle += rotSpeed * dt;
+		if (rotAngle > toy::TWOPI)
+			rotAngle -= toy::TWOPI;
+
+		pArti3DDev->SetMatrix(TOY_MATRIX_MODEL, toy::rotate(rotAngle, toy::vec3(0.0f, 1.0f, 0.0f)));
+
+		last = curTime;
+
+		if (past >= 1000.0)
+		{
+			std::cout << "FPS:" << nFrame << std::endl;
+			nFrame = 0;
+			past = 0.0;
+		}
+		else
+			++nFrame;
+
+		pArti3DDev->Begin();
+		pArti3DDev->ClearColorBuffer(ToyColor(0.0f, 0.0f, 0.0f));
+		pArti3DDev->ClearDepthBuffer();
+		pArti3DDev->DrawMesh_TileBase();
+		pArti3DDev->End();
+
+		SDL_UpdateWindowSurface(g_Window);
+	}
+
+	SDL_Quit();
+	DestroyDevice(&pArti3DDev);
+
 	_CrtDumpMemoryLeaks();
 
 	return 0;

@@ -4,6 +4,7 @@
 #include <SDL/SDL.h>
 #include <vector>
 #include <fstream>
+#include <atomic>
 #include "ToyMath.h"
 #include "Shader.h"
 #include "Arti3D_Types.h"
@@ -28,6 +29,8 @@ public:
 	void SetRenderTarget(const RenderTarget& rRT);
 
 	Arti3DResult InitializeDevice(Arti3DDeviceParameter deviceParam);
+
+	Arti3DResult PreRender();
 
 
 	void Begin();
@@ -65,9 +68,6 @@ public:
 	Arti3DResult CreateIndexBuffer(Arti3DIndexBuffer **o_pIndexBuffer, uint32_t iLength,Arti3DFormat format);
 
 	Arti3DResult SetIndexBuffer(Arti3DIndexBuffer *pIndexBuffer);
-
-	void SetVertexShader(VertexShader vs);
-	void SetFragmentShader(FragmentShader fs);
 
 	void SetVertexShader(Arti3DVertexShader pfnVS)
 	{
@@ -170,21 +170,23 @@ private:
 	Arti3DVertexLayout		*m_pVertexLayout;
 
 	Arti3DThread			*m_pThreads;
-
-	uint32_t				m_iThreadNum;
-	uint32_t				m_iWorkingThreadNum;
-
+	
 	Arti3DVertexCache					m_VSOutputCache[g_ciCacheSize];
 
 	std::vector<Arti3DTransformedFace>	faceBuffer;
 
 	std::vector<Arti3_DTile>		m_aTile;
 
-	Arti3DTile*					m_pTiles;
+	Arti3DTile					*m_pTiles;
 
-// 	uint32_t					*m_pJobQueue;
-// 	uint32_t					m_iJobStart;
-// 	uint32_t					m_iJobEnd;
+	uint32_t					*m_pJobQueue;
+	std::atomic<uint32_t>		m_iJobStart;
+	std::atomic<uint32_t>		m_iJobEnd;
+	std::atomic<uint32_t>		m_iJobStart2;
+
+	std::atomic<uint32_t>		m_iWorkingThread;
+
+	std::atomic<uint32_t>		m_iStage;
 
 	int							m_iTileX;
 	int							m_iTileY;

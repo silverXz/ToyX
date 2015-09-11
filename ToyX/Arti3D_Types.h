@@ -157,8 +157,6 @@ struct Arti3DShaderUniform
 
 struct RenderContext
 {
-	VertexShader	vs;
-	FragmentShader	fs;
 	Arti3DVertexShader	pfnVS;
 	Arti3DPixelShader	pfnPS;
 	Arti3DShaderUniform	globals;
@@ -227,11 +225,11 @@ enum Arti3DFormat {
 	ARTI3D_INDEX32
 };
 
-enum Arti3D_FragmentCoverage
+enum Arti3DFragmentCoverage
 {
-	FC_TILE = 0,
-	FC_BLOCK,
-	FC_FRAGMENT,
+	ARTI3D_FC_TILE = 0,
+	ARTI3D_FC_BLOCK,
+	ARTI3D_FC_FRAGMENT,
 };
 
 struct Arti3D_TiledFace
@@ -245,7 +243,8 @@ struct Arti3DFragment
 	int x, y;
 	int mask;
 	int faceID;
-	Arti3D_FragmentCoverage	coverType;
+	int threadID;
+	Arti3DFragmentCoverage	coverType;
 };
 
 struct Arti3_DTile

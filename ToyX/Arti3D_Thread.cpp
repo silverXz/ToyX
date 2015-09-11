@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include <algorithm>
+#include <atomic>
+#include <thread>
 #include "Arti3D_Thread.h"
 #include "Arti3D_Device.h"
 #include "Arti3D_IndexBuffer.h"
@@ -53,7 +55,52 @@ Arti3DResult Arti3DThread::Create(Arti3DDevice *pParent)
 unsigned int Arti3DThread::WorkFunc(void *pParam)
 {
 	Arti3DThread *pThread = (Arti3DThread*)pParam;
-	
+	Arti3DDevice *pDev = pThread->m_pParent;
+
+	while (pThread->m_pParent->m_iStage == 1)
+		std::this_thread::yield();
+	while (1)
+	{
+		pThread->ProcessVertex();
+		pThread->PreProcessTile();
+
+		// Till Now, All Triangle Has Been Processed And Added To JobQueue.
+		// Next, We What To Fetch Tile From JobQueue And Rasterize Tile To Generate Fragments.
+		// But!!!!! What Have To Wait For All Thread Finishing What We Have Done Now.
+		
+		// All Thread Are Done For The First Stage!
+		if (--pDev->m_iWorkingThread == 0)
+		{
+			pDev->m_iWorkingThread = g_ciMaxThreadNum;
+			pDev->m_iStage = 1;
+		}
+		while (pDev->m_iStage == 0)
+			std::this_thread::yield();
+		
+		// OK,Then.Let's Take Things To The Next Level! 
+		uint32_t iJob = 0;
+		while ((iJob = pDev->m_iJobStart++) < pDev->m_iJobEnd)
+		{
+			Arti3DTile *pTile = &pDev->m_pTiles[pDev->m_pJobQueue[iJob]];
+			pThread->RasterizeTile(pTile);
+			pTile->m_bFinishedRasterization = true;
+		}
+		
+		// This Thread Finishes Rasterization, Start Fragment Processing.
+		while ((iJob = pDev->m_iJobStart2++) < pDev->m_iJobEnd)
+		{
+			Arti3DTile *pTile = &pDev->m_pTiles[pDev->m_pJobQueue[iJob]];
+			while (!pTile->m_bFinishedRasterization)
+				std::this_thread::yield();
+			pThread->RenderFragment(pTile);
+		}
+
+		if (--pDev->m_iWorkingThread == 0)
+			pDev->m_iWorkingThread = g_ciMaxThreadNum;
+		while (pDev->m_iStage == 1)
+			std::this_thread::yield();
+	}
+
 	return 0;
 }
 
@@ -264,14 +311,14 @@ void Arti3DThread::PostProcessVertex(Arti3DVSOutput *io_pVSOutput)
 	io_pVSOutput->p.y *= invW;
 	io_pVSOutput->p.w = invW;
 
+	for (int j = 0; j < g_ciMaxVaryingNum; ++j)
+		io_pVSOutput->varyings[j] *= invW;
+	
 	// Transform to screen space.
 	io_pVSOutput->p.x = (io_pVSOutput->p.x + 1.0f) * 0.5f * m_pParent->mRT.back_buffer->w;
 	io_pVSOutput->p.y = m_pParent->mRT.back_buffer->h - (io_pVSOutput->p.y + 1.0f)*0.5f * m_pParent->mRT.back_buffer->h;
 
-	for (int j = 0; j < g_ciMaxVaryingNum; ++j)
-	{
-		io_pVSOutput->varyings[j] *= invW;
-	}
+
 }
 
 void Arti3DThread::AddTransformedFace(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVSOutput *v3)
@@ -323,8 +370,8 @@ void Arti3DThread::PreProcessTile()
 {
 	Arti3DTile *pTile = m_pParent->m_pTiles;
 
-	uint32_t iTileX = m_pParent->m_iTileX;
-	uint32_t iTileY = m_pParent->m_iTileY;
+	int iTileX = m_pParent->m_iTileX;
+	int iTileY = m_pParent->m_iTileY;
 
 	for (uint32_t iFaceID = 0; iFaceID < m_iTransformedFace; ++iFaceID)
 	{
@@ -427,7 +474,495 @@ void Arti3DThread::PreProcessTile()
 					tile.m_ppTileCoverage[m_iThread][refIndexIndex] = ARTI3D_TC_PARTIAL;
 					++refIndexIndex;
 				}
+
+				// If This Tile Is Not Already Added To The Job Queue, Add It And Set The Flag.
+				if (!tile.m_bAddedToJobQueue.test_and_set())
+					m_pParent->m_pJobQueue[m_pParent->m_iJobEnd++] = iTile;
 			}
 		}
 	}
 }
+
+void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
+{
+	for (int i = 0; i < g_ciMaxThreadNum; ++i)
+	{
+		Arti3DThread *tmpThread = &m_pParent->m_pThreads[i];
+		
+		for (uint32_t j = 0; j < io_pTile->m_pIndexBufferSize[i]; ++j)
+		{
+
+
+			Arti3DTileCoverage eTileCoverage = io_pTile->m_ppTileCoverage[i][j];
+			uint32_t iFace = io_pTile->m_ppFaceIndexBuffer[i][j];
+			if (eTileCoverage == ARTI3D_TC_ALL)
+			{
+				Arti3DFragment frag;
+				frag.x = io_pTile->m_iX;
+				frag.y = io_pTile->m_iY;
+				frag.faceID = iFace;
+				frag.threadID = i;
+				frag.coverType = ARTI3D_FC_TILE;
+				io_pTile->m_vFragments.push_back(frag);
+				continue;
+			}
+
+
+			Arti3DTransformedFace *f = &tmpThread->m_pTransformedFace[iFace];
+			
+			int DX21 = f->fp2[0] - f->fp1[0];
+			int DY21 = f->fp2[1] - f->fp1[1];
+			int DX32 = f->fp3[0] - f->fp2[0];
+			int DY32 = f->fp3[1] - f->fp2[1];
+			int DX13 = f->fp1[0] - f->fp3[0];
+			int DY13 = f->fp1[1] - f->fp3[1];
+
+			int faceOrient = DX13*DY21 - DX21*DY13;
+
+			if (faceOrient > 0)
+				return;
+
+
+			int C1 = -DY21 * f->fp1[0] + DX21 * f->fp1[1];
+			int C2 = -DY32 * f->fp2[0] + DX32 * f->fp2[1];
+			int C3 = -DY13 * f->fp3[0] + DX13 * f->fp3[1];
+
+			if (DY21 > 0 || (DY21 == 0 && DX21 > 0))
+				++C1;
+			if (DY32 > 0 || (DY32 == 0 && DX32 > 0))
+				++C2;
+			if (DY13 > 0 || (DY13 == 0 && DX13 > 0))
+				++C3;
+
+			const int DDX21 = DX21 << 4;
+			const int DDX32 = DX32 << 4;
+			const int DDX13 = DX13 << 4;
+			const int DDY21 = DY21 << 4;
+			const int DDY32 = DY32 << 4;
+			const int DDY13 = DY13 << 4;
+
+			// For Every 8 * 8 Blocks.
+			for (int y = io_pTile->m_iY; y < io_pTile->m_iY+ io_pTile->m_iHeight; y += g_ciBlockSize)
+			{
+				for (int x = io_pTile->m_iX; x < io_pTile->m_iX + io_pTile->m_iWidth; x += g_ciBlockSize)
+				{
+					int x0 = x << 4;
+					int x1 = (x + g_ciBlockSize - 1) << 4;
+					int y0 = y << 4;
+					int y1 = (y + g_ciBlockSize - 1) << 4;
+
+					auto calcEdgeMask = [&](int C, int dy, int dx) {
+						bool m0 = (C + dy * x0 - dx * y0) > 0;
+						bool m1 = (C + dy * x0 - dx * y1) > 0;
+						bool m2 = (C + dy * x1 - dx * y0) > 0;
+						bool m3 = (C + dy * x1 - dx * y1) > 0;
+						return (m0 << 0) | (m1 << 1) | (m2 << 2) | (m3 << 3);
+					};
+
+					// Test Block Against 3 Edges
+					int a1 = calcEdgeMask(C1, DY21, DX21);
+					int a2 = calcEdgeMask(C2, DY32, DX32);
+					int a3 = calcEdgeMask(C3, DY13, DX13);
+
+					// Block Completely Outside Triangle!
+					if (a1 == 0 || a2 == 0 || a3 == 0)
+						continue;
+
+					// Block Totally Inside Triangle!
+					if (a1 == 0xF && a2 == 0xF && a3 == 0xF)
+					{
+						Arti3DFragment frag;
+						frag.x = x;
+						frag.y = y;
+						frag.coverType = ARTI3D_FC_BLOCK;
+						frag.faceID = iFace;
+						frag.threadID = i;
+						io_pTile->m_vFragments.push_back(frag);
+						continue;
+					}
+
+					// Block Partially Inside Trianglel!
+					// Calculate Coverage Mask!
+					__m128i B1 = _mm_set1_epi32(C1 + DY21 * x0 - DX21 * y0);
+					__m128i B2 = _mm_set1_epi32(C2 + DY32 * x0 - DX32 * y0);
+					__m128i B3 = _mm_set1_epi32(C3 + DY13 * x0 - DX13 * y0);
+
+					__m128i offsetDDY21 = _mm_set_epi32(3 * DDY21, 2 * DDY21, DDY21, 0);
+					__m128i offsetDDY32 = _mm_set_epi32(3 * DDY32, 2 * DDY32, DDY32, 0);
+					__m128i offsetDDY13 = _mm_set_epi32(3 * DDY13, 2 * DDY13, DDY13, 0);
+
+					__m128i offsetDDY21ex = _mm_set1_epi32(4 * DDY21);
+					__m128i offsetDDY32ex = _mm_set1_epi32(4 * DDY32);
+					__m128i offsetDDY13ex = _mm_set1_epi32(4 * DDY13);
+
+					__m128i offsetDDX21 = _mm_set1_epi32(DDX21);
+					__m128i offsetDDX32 = _mm_set1_epi32(DDX32);
+					__m128i offsetDDX13 = _mm_set1_epi32(DDX13);
+
+
+					for (int k = 0; k < g_ciBlockSize; ++k)
+					{
+						// First 4 pixels
+						__m128i E1 = _mm_add_epi32(B1, offsetDDY21);
+						__m128i E2 = _mm_add_epi32(B2, offsetDDY32);
+						__m128i E3 = _mm_add_epi32(B3, offsetDDY13);
+
+						__m128i xm1 = _mm_cmpgt_epi32(E1, _mm_setzero_si128());
+						__m128i xm2 = _mm_cmpgt_epi32(E2, _mm_setzero_si128());
+						__m128i xm3 = _mm_cmpgt_epi32(E3, _mm_setzero_si128());
+
+						__m128i xm = _mm_and_si128(xm1, _mm_and_si128(xm2, xm3));
+
+
+						int im = _mm_movemask_ps(*(__m128*)&xm);
+
+						if (0 != im)
+						{
+							Arti3DFragment frag;
+							frag.x = x;
+							frag.y = y + k;
+							frag.faceID = iFace;
+							frag.threadID = i;
+							frag.mask = im;
+							frag.coverType = ARTI3D_FC_FRAGMENT;
+							io_pTile->m_vFragments.push_back(frag);
+						}
+
+						// Second 4 pixels
+
+						E1 = _mm_add_epi32(E1, offsetDDY21ex);
+						E2 = _mm_add_epi32(E2, offsetDDY32ex);
+						E3 = _mm_add_epi32(E3, offsetDDY13ex);
+
+						xm1 = _mm_cmpgt_epi32(E1, _mm_setzero_si128());
+						xm2 = _mm_cmpgt_epi32(E2, _mm_setzero_si128());
+						xm3 = _mm_cmpgt_epi32(E3, _mm_setzero_si128());
+
+						xm = _mm_and_si128(xm1, _mm_and_si128(xm2, xm3));
+
+						im = _mm_movemask_ps(*(__m128*)&xm);
+
+						if (0 != im)
+						{
+							Arti3DFragment frag;
+							frag.x = x + 4;
+							frag.y = y + k;
+							frag.faceID = iFace;
+							frag.threadID = i;
+							frag.mask = im;
+							frag.coverType = ARTI3D_FC_FRAGMENT;
+							io_pTile->m_vFragments.push_back(frag);
+						}
+						B1 = _mm_sub_epi32(B1, offsetDDX21);
+						B2 = _mm_sub_epi32(B2, offsetDDX32);
+						B3 = _mm_sub_epi32(B3, offsetDDX13);
+					}
+				}
+			}
+		}
+	}
+}
+
+void Arti3DThread::RenderFragment(Arti3DTile *i_pTile)
+{
+	for (auto& frag : i_pTile->m_vFragments)
+	{
+		switch (frag.coverType)
+		{
+		case ARTI3D_FC_TILE:
+			RenderTileFragments(&frag);
+			break;
+		case ARTI3D_FC_BLOCK:
+			RenderBlockFragments(&frag);
+			break;
+		case ARTI3D_FC_FRAGMENT:
+			RenderMaskedFragments(&frag);
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
+{
+	__m128 W0, W1, WDY;
+	__m128 V0[g_ciMaxVaryingNum], V1[g_ciMaxVaryingNum], VDY[g_ciMaxVaryingNum];
+	__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
+	__m128 C1 = _mm_set_ps1(4.0f);
+
+	Arti3DThread *pThread = &m_pParent->m_pThreads[i_pFrag->threadID];
+	Arti3DTransformedFace *f = &pThread->m_pTransformedFace[i_pFrag->faceID];
+
+	RenderTarget &rRT = m_pParent->mRT;
+	RenderContext &rRC = m_pParent->mRC;
+	
+	float *depthBuffer = nullptr;
+	uint32_t *colorBuffer = nullptr;
+
+	for (int x = i_pFrag->x; x < i_pFrag->x + g_ciTileSize; x += g_ciBlockSize)
+	{
+		colorBuffer = (uint32_t*)rRT.back_buffer->pixels + i_pFrag->y * rRT.back_buffer->w + x;
+		depthBuffer = (float*)rRT.z_buffer->pixels + i_pFrag->y * rRT.z_buffer->w + x;
+
+		for (int y = i_pFrag->y; y < i_pFrag->y + g_ciTileSize; ++y)
+		{
+			CalcVaryings(f, x, y, W0, W1, WDY, V0, V1, VDY);
+			SSE_ALIGN Arti3DPSParam ps_param;
+			
+			__m128	dbquad;
+			__m128i dbmask, oquad, nquad;
+			uint32_t	*colorTileLine = colorBuffer;
+			float		*depthTileLine = depthBuffer;
+
+			dbquad = _mm_loadu_ps(depthTileLine);
+			oquad = _mm_loadu_si128((__m128i*)colorTileLine);
+
+			// Depth test
+			dbmask = *(__m128i*)&_mm_cmpge_ps(W0, dbquad);
+
+			// If At Least 1 Pixels Passed Test.
+			if (_mm_movemask_ps(*(__m128*)&dbmask))
+			{
+				PreInterpolateVaryings(W0, V0, ps_param.Varyings);
+				rRC.pfnPS(&ps_param);
+
+				nquad = ConvertColorFormat(ps_param.Output);
+
+				// Update Depth Buffer!
+				dbquad = _mm_or_ps(_mm_and_ps(W0, *(__m128*)&dbmask), _mm_andnot_ps(*(__m128*)&dbmask, dbquad));
+				_mm_storeu_ps(depthTileLine, dbquad);
+
+				nquad = _mm_or_si128(_mm_and_si128(dbmask, nquad), _mm_andnot_si128(dbmask, oquad));
+				_mm_storeu_si128((__m128i*)colorTileLine, nquad);
+			}
+
+			colorTileLine += 4;
+			depthTileLine += 4;
+
+			dbquad = _mm_loadu_ps(depthTileLine);
+			oquad = _mm_loadu_si128((__m128i*)colorTileLine);
+
+			dbmask = *(__m128i*)&_mm_cmpge_ps(W1, dbquad);
+
+			if (_mm_movemask_ps(*(__m128*)&dbmask))
+			{
+				PreInterpolateVaryings(W1, V1, ps_param.Varyings);
+
+				rRC.pfnPS(&ps_param);
+
+				nquad = ConvertColorFormat(ps_param.Output);
+
+				// Update Depth Buffer!
+				dbquad = _mm_or_ps(_mm_and_ps(W1, *(__m128*)&dbmask), _mm_andnot_ps(*(__m128*)&dbmask, dbquad));
+				_mm_storeu_ps(depthTileLine, dbquad);
+
+				nquad = _mm_or_si128(_mm_and_si128(dbmask, nquad), _mm_andnot_si128(dbmask, oquad));
+				_mm_storeu_si128((__m128i*)colorTileLine, nquad);
+			}
+
+			colorBuffer += rRT.back_buffer->w;
+			depthBuffer += rRT.z_buffer->w;
+
+			IncVaryingsAlongY(W0, W1, WDY, V0, V1, VDY);
+		}
+	}
+}
+
+
+void Arti3DThread::RenderBlockFragments(Arti3DFragment *i_pFrag)
+{
+	__m128 W0, W1, WDY;
+	__m128 V0[g_ciMaxVaryingNum], V1[g_ciMaxVaryingNum], VDY[g_ciMaxVaryingNum];
+	__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
+	__m128 C1 = _mm_set_ps1(4.0f);
+
+	Arti3DThread *pThread = &m_pParent->m_pThreads[i_pFrag->threadID];
+	Arti3DTransformedFace *f = &pThread->m_pTransformedFace[i_pFrag->faceID];
+
+	RenderTarget &rRT = m_pParent->mRT;
+	RenderContext &rRC = m_pParent->mRC;
+	
+	float *depthBuffer = (float*)rRT.z_buffer->pixels + rRT.z_buffer->w * i_pFrag->y + i_pFrag->x;
+	uint32_t *colorBuffer = (uint32_t *)rRT.back_buffer->pixels + rRT.back_buffer->w * i_pFrag->y + i_pFrag->x;
+
+	for (int y = i_pFrag->y; y < i_pFrag->y + g_ciBlockSize; ++y)
+	{
+		CalcVaryings(f, i_pFrag->x, y, W0, W1, WDY, V0, V1, VDY);
+		SSE_ALIGN Arti3DPSParam ps_param;
+		
+		__m128	dbquad;
+		__m128i dbmask, oquad, nquad;
+		uint32_t	*colorTileLine = colorBuffer;
+		float		*depthTileLine = depthBuffer;
+
+		dbquad = _mm_loadu_ps(depthTileLine);
+		oquad = _mm_loadu_si128((__m128i*)colorTileLine);
+
+		// Depth test
+		dbmask = *(__m128i*)&_mm_cmpge_ps(W0, dbquad);
+
+		// If At Least 1 Pixels Passed Test.
+		if (_mm_movemask_ps(*(__m128*)&dbmask))
+		{
+			PreInterpolateVaryings(W0, V0, ps_param.Varyings);
+			rRC.pfnPS(&ps_param);
+
+			nquad = ConvertColorFormat(ps_param.Output);
+
+			// Update Depth Buffer!
+			dbquad = _mm_or_ps(_mm_and_ps(W0, *(__m128*)&dbmask), _mm_andnot_ps(*(__m128*)&dbmask, dbquad));
+			_mm_storeu_ps(depthTileLine, dbquad);
+
+			nquad = _mm_or_si128(_mm_and_si128(dbmask, nquad), _mm_andnot_si128(dbmask, oquad));
+			_mm_storeu_si128((__m128i*)colorTileLine, nquad);
+		}
+
+		colorTileLine += 4;
+		depthTileLine += 4;
+
+		dbquad = _mm_loadu_ps(depthTileLine);
+		oquad = _mm_loadu_si128((__m128i*)colorTileLine);
+
+		dbmask = *(__m128i*)&_mm_cmpge_ps(W1, dbquad);
+
+		if (_mm_movemask_ps(*(__m128*)&dbmask))
+		{
+			PreInterpolateVaryings(W1, V1, ps_param.Varyings);
+
+			rRC.pfnPS(&ps_param);
+
+			nquad = ConvertColorFormat(ps_param.Output);
+
+			// Update Depth Buffer!
+			dbquad = _mm_or_ps(_mm_and_ps(W1, *(__m128*)&dbmask), _mm_andnot_ps(*(__m128*)&dbmask, dbquad));
+			_mm_storeu_ps(depthTileLine, dbquad);
+
+			nquad = _mm_or_si128(_mm_and_si128(dbmask, nquad), _mm_andnot_si128(dbmask, oquad));
+			_mm_storeu_si128((__m128i*)colorTileLine, nquad);
+		}
+
+		colorBuffer += rRT.back_buffer->w;
+		depthBuffer += rRT.z_buffer->w;
+
+		IncVaryingsAlongY(W0, W1, WDY, V0, V1, VDY);
+	}
+}
+
+void Arti3DThread::RenderMaskedFragments(Arti3DFragment *i_pFrag)
+{
+	__m128 W0, W1, WDY;
+	__m128 V0[g_ciMaxVaryingNum], V1[g_ciMaxVaryingNum], VDY[g_ciMaxVaryingNum];
+	__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
+	__m128 C1 = _mm_set_ps1(4.0f);
+	__m128i iMask = _mm_set_epi32(8, 4, 2, 1);
+
+	Arti3DThread *pThread = &m_pParent->m_pThreads[i_pFrag->threadID];
+	Arti3DTransformedFace *f = &pThread->m_pTransformedFace[i_pFrag->faceID];
+
+	RenderTarget &rRT = m_pParent->mRT;
+	RenderContext &rRC = m_pParent->mRC;
+
+	float *depthBuffer = (float*)rRT.z_buffer->pixels + rRT.z_buffer->w * i_pFrag->y + i_pFrag->x;
+	uint32_t *colorBuffer = (uint32_t *)rRT.back_buffer->pixels + rRT.back_buffer->w * i_pFrag->y + i_pFrag->x;
+
+	CalcVaryings(f, i_pFrag->x, i_pFrag->y, W0, W1, WDY, V0, V1, VDY);
+
+	SSE_ALIGN Arti3DPSParam ps_param;
+
+	__m128	dbquad;
+	__m128i cbmask, dbmask, oquad, nquad;
+	uint32_t	*colorTileLine = colorBuffer;
+	float		*depthTileLine = depthBuffer;
+
+	dbquad = _mm_loadu_ps(depthTileLine);
+	oquad = _mm_loadu_si128((__m128i*)colorTileLine);
+
+	cbmask = _mm_cmpgt_epi32(_mm_and_si128(_mm_set1_epi32(i_pFrag->mask), iMask), _mm_setzero_si128());
+
+	// Depth test
+	dbmask = *(__m128i*)&_mm_cmpge_ps(W0, dbquad);
+
+	dbmask = _mm_and_si128(dbmask, cbmask);
+	// If At Least 1 Pixels Passed Test.
+	if (_mm_movemask_ps(*(__m128*)&dbmask))
+	{
+		PreInterpolateVaryings(W0, V0, ps_param.Varyings);
+		rRC.pfnPS(&ps_param);
+
+		nquad = ConvertColorFormat(ps_param.Output);
+
+		// Update Depth Buffer!
+		dbquad = _mm_or_ps(_mm_and_ps(W0, *(__m128*)&dbmask), _mm_andnot_ps(*(__m128*)&dbmask, dbquad));
+		_mm_storeu_ps(depthTileLine, dbquad);
+
+		nquad = _mm_or_si128(_mm_and_si128(dbmask, nquad), _mm_andnot_si128(dbmask, oquad));
+		_mm_storeu_si128((__m128i*)colorTileLine, nquad);
+	}
+}
+
+void Arti3DThread::CalcVaryings(Arti3DTransformedFace* f, int x, int y, __m128 &W0, __m128 &W1, __m128 &WDY, __m128 *V0, __m128 *V1, __m128 *VDY)
+{
+	float xStep = x - f->v0x;
+	float yStep = y - f->v0y;
+
+	// Setup W0 And W1.
+	__m128 base = _mm_set_ps1(f->v0w + xStep * f->dw.x + yStep * f->dw.y);
+	__m128 dx = _mm_set_ps1(f->dw.x);
+
+	__m128 C1 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
+	__m128 C2 = _mm_set_ps1(4.0f);
+
+	W0 = _mm_add_ps(base, _mm_mul_ps(dx, C1));
+	W1 = _mm_add_ps(W0, _mm_mul_ps(dx, C2));
+
+	WDY = _mm_set_ps1(f->dw.y);
+
+	for (int i = 0; i < g_ciMaxVaryingNum; ++i)
+	{
+		base = _mm_set_ps1(f->v0v[i] + xStep * f->dv[i].x + yStep * f->dv[i].y);
+		dx = _mm_set_ps1(f->dv[i].x);
+
+		V0[i] = _mm_add_ps(base, _mm_mul_ps(dx, C1));
+		V1[i] = _mm_add_ps(V0[i], _mm_mul_ps(dx, C2));
+		VDY[i] = _mm_set1_ps(f->dv[i].y);
+	}
+}
+
+void Arti3DThread::PreInterpolateVaryings(__m128 &W, __m128 *iV, SSE_Float *oV)
+{
+	__m128 w = _mm_rcp_ps(W);
+	for (int i = 0; i < g_ciMaxVaryingNum; ++i)
+		oV[i] = _mm_mul_ps(w, iV[i]);
+}
+
+void Arti3DThread::IncVaryingsAlongY(__m128 &W0, __m128 &W1, __m128 WDY, __m128 *V0, __m128 *V1, __m128 *VDY)
+{
+	W0 = _mm_add_ps(W0, WDY);
+	W1 = _mm_add_ps(W1, WDY);
+
+	for (int i = 0; i < g_ciMaxVaryingNum; ++i)
+	{
+		V0[i] = _mm_add_ps(V0[i], VDY[i]);
+		V1[i] = _mm_add_ps(V1[i], VDY[i]);
+	}
+}
+
+__m128i Arti3DThread::ConvertColorFormat(SSE_Color3 &src)
+{
+	__m128 fMax = _mm_set_ps1(255.0f);
+
+	src.r = _mm_min_ps(_mm_mul_ps(src.r.f, fMax), fMax);
+	src.g = _mm_min_ps(_mm_mul_ps(src.g.f, fMax), fMax);
+	src.b = _mm_min_ps(_mm_mul_ps(src.b.f, fMax), fMax);
+
+	__m128i iR = _mm_cvtps_epi32(src.r.f);
+	__m128i iG = _mm_cvtps_epi32(src.g.f);
+	__m128i iB = _mm_cvtps_epi32(src.b.f);
+
+	iR = _mm_slli_epi32(iR, 16);
+	iG = _mm_slli_epi32(iG, 8);
+
+	return _mm_or_si128(_mm_or_si128(iR, iG), iB);
+}
+
