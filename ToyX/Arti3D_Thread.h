@@ -16,12 +16,22 @@ protected:
 
 
 public:
+	// Clear All The Local Caches: Vertex Cache, Transformed Face Buffer.
 	void ClearCache();
-
+	
+	// Create A New Thread.
+	// @param pParent : Parent Who Created This Thread.
+	// @param iThread : Thread ID [0,g_ciMaxThreadNum).
 	Arti3DResult Create(Arti3DDevice *pParent,uint32_t iThread);
 
+	// Distribute Work For Every Thread.
+	// @param iThread : Thread ID [0,g_ciMaxThreadNum).
+	// @param iStart  : Start Index Of The Global Index Buffer.
+	// @param iEnd    : End Index Of The Global Index Buffer (Exclusive).
 	void DistributeWorkLoad(uint32_t iThread, uint32_t iStart, uint32_t iEnd);
-
+	
+	// Thread Function.
+	// @param pThread : Pointer To Specific Instance Of Thread.
 	static void WorkFunc(Arti3DThread *pThread);
 
 private:
@@ -60,27 +70,48 @@ private:
 	
 	// Rasterize Tile To Generate Fragments For Processing.
 	void RasterizeTile(Arti3DTile *io_pTile);
-
+	
+	// Process Every Fragment Of This Tile. By Processing, We Mean Color Calculation, Depth Test, etc.
+	// @param i_pTile : Pointer To Target Tile.
 	void RenderFragment(Arti3DTile *i_pTile);
-
+	
+	// There Are 3 Types Of Fragment:
+	// Type #1 : It Has The Size Of A Tile And It Is Totally Covered By A Triangle.
+	// Type #2 : It Has The Size Of A Block And It Is Totally Covered By A Triangle.
+	// Type #3 : It Has 4 Consecutive Pixels In A Row With A Coverage Mask.
+	
+	// Render Type #1 Fragment.
+	// @param i_pFrag : Pointer To Target Fragment.
 	void RenderTileFragments(Arti3DFragment *i_pFrag);
+	
+	// Render Type #2 Fragment.
+	// @param i_pFrag : Pointer To Target Fragment.
 	void RenderBlockFragments(Arti3DFragment *i_pFrag);
+	
+	// Render Type #3 Fragment.
+	// @param i_pFrag : Pointer To Target Fragment.
 	void RenderMaskedFragments(Arti3DFragment *i_pFrag);
-// Compute Attribute Gradient Along X And Y For A Given Triangle.
+	
+	// Compute Attribute Gradient Along X And Y For A Given Triangle.
 	inline void ComputeTriangleGradient(float C, float di21, float di31, float dx21, float dy21, float dx31, float dy31, toy::vec2 *o_pVec2);
+
 	inline void CalcVaryings(Arti3DTransformedFace* f, int x, int y, __m128 &W0, __m128 &W1, __m128 &WDY, __m128 *V0, __m128 *V1, __m128 *VDY);
+	
 	inline void PreInterpolateVaryings(__m128 &W, __m128 *iV, SSE_Float *oV);
+	
 	inline void IncVaryingsAlongY(__m128 &W0, __m128 &W1, __m128 WDY, __m128 *V0, __m128 *V1, __m128 *VDY);
+	
 	inline __m128i ConvertColorFormat(SSE_Color3 &src);
 
 private:
-	Arti3DVertexCache		*m_pVertexCache;
-	Arti3DTransformedFace	*m_pTransformedFace;
-	uint32_t				m_iTransformedFace;
-	uint32_t				m_iThread;
-	uint32_t				m_iStart, m_iEnd;
+	Arti3DVertexCache			*m_pVertexCache;	// Vertex Cache
+	Arti3DTransformedFace			*m_pTransformedFace;	// Local Buffer For Transformed Face.
+	uint32_t				m_iTransformedFace;	// Size Of Local Buffer.
+	uint32_t				m_iThread;		// Thread Index.
+	uint32_t				m_iStart;		// Work Load Start Index.
+	uint32_t				m_iEnd;			// Work Load End Index.
 
-	Arti3DDevice			*m_pParent;
+	Arti3DDevice				*m_pParent;		// Parent Who Created This Thread.
 };
 
 
