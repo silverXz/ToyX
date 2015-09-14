@@ -33,8 +33,14 @@ Arti3DTile::~Arti3DTile()
 	}
 }
 
-Arti3DResult Arti3DTile::Create()
+Arti3DResult Arti3DTile::Create(uint32_t i_iX, uint32_t i_iY, uint32_t i_iWidth, uint32_t i_iHeight)
 {
+	m_iX = i_iX;
+	m_iY = i_iY;
+
+	m_iWidth = i_iWidth;
+	m_iHeight = i_iHeight;
+
 	m_ppFaceIndexBuffer = new uint32_t *[g_ciMaxThreadNum];
 	if (!m_ppFaceIndexBuffer)
 		return ARTI3D_OUT_OF_MEMORY;

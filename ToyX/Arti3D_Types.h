@@ -1,7 +1,7 @@
 #ifndef _TOY_TYPES_H_
 #define _TOY_TYPES_H_
 
-#include "ToyMath.h"
+#include "Arti3D_Math.h"
 #include <SDL/SDL.h>
 #include <cstdint>
 #include <vector>
@@ -27,34 +27,19 @@ const int g_ciTileSizeShift = 4;
 
 const int g_ciBlockSize = 8;
 
-class ToyColor {
-public:
-	uint32_t mColor;
-
-	explicit ToyColor(uint32_t r, uint32_t g, uint32_t b, uint32_t a = 255)
-	{
-		mColor = ((a << 24) | (r << 16) | (g << 8) | b);
-	}
-
-	inline explicit ToyColor(float r, float g, float b, float a = 1.0f)
-	{
-		const uint32_t mask = ~0xFF;
-		uint32_t red = (uint32_t)(255.0f * r);
-		red = (red & mask) ? 255 : red;
-		uint32_t green = (uint32_t)(255.0f * g);
-		green = (green & mask) ? 255 : green;
-		uint32_t blue = (uint32_t)(255.0f * b);
-		blue = (blue & mask) ? 255 : blue;
-		uint32_t alpha = (uint32_t)(255.0f * a);
-		alpha = (alpha & mask) ? 255 : alpha;
-		mColor = ((alpha << 24) | (red << 16) | (green << 8) | blue);
-	}
-
-	uint32_t ToUInt32() const
-	{
-		return mColor;
-	}
-};
+inline uint32_t CvrtToUint32(const a3d::vec4 &color)
+{
+	const uint32_t mask = ~0xFF;
+	uint32_t red = (uint32_t)(255.0f * color.r);
+	red = (red & mask) ? 255 : red;
+	uint32_t green = (uint32_t)(255.0f * color.g);
+	green = (green & mask) ? 255 : green;
+	uint32_t blue = (uint32_t)(255.0f * color.b);
+	blue = (blue & mask) ? 255 : blue;
+	uint32_t alpha = (uint32_t)(255.0f * color.a);
+	alpha = (alpha & mask) ? 255 : alpha;
+	return ((alpha << 24) | (red << 16) | (green << 8) | blue);
+}
 
 struct Arti3DDeviceParameter
 {
@@ -86,14 +71,6 @@ enum GeometryDataType {
 };
 
 
-struct Toy_Vertex
-{
-	a3d::vec4 p;
-	a3d::vec4 c;
-	a3d::vec4 n;
-	float u, v;
-};
-
 struct Arti3DVSOutput
 {
 	a3d::vec4 p;
@@ -113,7 +90,7 @@ struct Arti3DVertexCache
 	}
 };
 
-struct Toy_Plane
+struct Arti3DPlane
 {
 	float x, y, z, d;
 };

@@ -46,9 +46,9 @@ Arti3DDevice::~Arti3DDevice()
 
 
 
-void Arti3DDevice::ClearColorBuffer(const ToyColor& color)
+void Arti3DDevice::ClearColorBuffer(const a3d::vec4& color)
 {
-	int hr = SDL_FillRect(mRT.back_buffer, nullptr, color.ToUInt32());
+	int hr = SDL_FillRect(mRT.back_buffer, nullptr, CvrtToUint32(color));
 	if (hr)
 		std::cerr << "Failed to clear color buffer!\n";
 }
@@ -141,7 +141,7 @@ void Arti3DDevice::Draw3DLines(const a3d::vec4& p1, const a3d::vec4 p2, uint32_t
 	Draw2DLines(iRound(clip1.x), iRound(clip1.y), iRound(clip2.x), iRound(clip2.y), color);
 }
 
-void Arti3DDevice::Draw3DSolidTriangle(const a3d::vec4& p1, const a3d::vec4& p2, const a3d::vec4& p3, const ToyColor& c)
+void Arti3DDevice::Draw3DSolidTriangle(const a3d::vec4& p1, const a3d::vec4& p2, const a3d::vec4& p3, const a3d::vec4& c)
 {
 	vec4 clip1 = mRC.globals.mvp * p1;
 	vec4 clip2 = mRC.globals.mvp * p2;
@@ -168,53 +168,6 @@ void Arti3DDevice::Draw3DSolidTriangle(const a3d::vec4& p1, const a3d::vec4& p2,
 	clip2.y = mRT.back_buffer->h - (clip2.y + 1.0f) * half_height;
 	clip3.x = (clip3.x + 1.0f) * half_width;
 	clip3.y = mRT.back_buffer->h - (clip3.y + 1.0f) * half_height;	
-}
-
-void Arti3DDevice::LoadCube()
-{
-	const float len = 2.0f;
-
-	Arti3DVertexLayout *pVertexLayout = nullptr;
-	Arti3DVertexAttributeFormat vaf[] = { ARTI3D_VAF_VECTOR4, ARTI3D_VAF_VECTOR4 };
-	CreateVertexLayout(&pVertexLayout, 2, vaf);
-	SetVertexLayout(pVertexLayout);
-
-	Arti3DVertexBuffer *pVertexBuffer = nullptr;
-	
-	uint32_t iFloat = pVertexLayout->iGetFloats();
-	uint32_t iStride = iFloat * sizeof(float);
-	const uint32_t iVertex = 8;
-	CreateVertexBuffer(&pVertexBuffer, iVertex * iStride);
-
-	// Upload Cube Data To VertexBuffer
-	std::vector<std::vector<float>> xv{
-		{ -len, len, len, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f},
-		{ len, len, len, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f },
-		{ len, len, -len, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f },
-		{ -len, len, -len, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f },
-		{ -len, -len, len, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f },
-		{ len, -len, len, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f },
-		{ len, -len, -len, 1.0f,1.0f, 1.0f, 1.0f, 0.0f },
-		{ -len, -len, -len, 1.0f,0.0f, 0.0f, 0.0f, 1.0f }
-	};
-
-	for (int i = 0; i < iVertex; ++i)
-	{
-		void *pDest = nullptr;
-		pVertexBuffer->GetPointer(i * iStride, &pDest);
-		memcpy(pDest, &xv[i][0], iStride);
-	}
-
-	SetVertexBuffer(pVertexBuffer);
-
-	Arti3DIndexBuffer *pIndexBuffer = nullptr;
-	CreateIndexBuffer(&pIndexBuffer, 36 * sizeof(uint32_t), ARTI3D_INDEX32);
-	uint32_t xid[] = { 0, 1, 2, 0, 2, 3, 0, 4, 5, 0, 5, 1, 1, 5, 6, 1, 6, 2, 4, 7, 6, 4, 6, 5, 0, 3, 7, 0, 7, 4, 3, 2, 6, 3, 6, 7 };
-	void *pDest = nullptr;
-	pIndexBuffer->GetPointer(0, &pDest);
-	memcpy(pDest, xid, sizeof(xid));
-
-	SetIndexBuffer(pIndexBuffer);
 }
 
 void Arti3DDevice::Begin()
@@ -353,7 +306,7 @@ void Arti3DDevice::ClipTriangle(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVS
 	}
 
 	// Clipping happens! Do the clip work!
-	Toy_Plane p[6] = {
+	Arti3DPlane p[6] = {
 		{-1.0f,0.0f,0.0f,1.0f}, // POS_X_PLANE ( pointing at -x )
 		{1.0f,0.0f,0.0f,1.0f},	// NEG_X_PLANE ( pointing at +x )
 		{0.0f,-1.0f,0.0f,1.0f},	// POS_Y_PLANE ( pointing at -y )
@@ -384,7 +337,7 @@ void Arti3DDevice::ClipTriangle(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVS
 	// Several lambda expression to help!
 
 	// Calculate the signed distance between a vertex and a plane.
-	auto calcPointPlaneDistance = [](const Toy_Plane *p, const Arti3DVSOutput *v) { 	return p->x * v->p.x + p->y * v->p.y + p->z * v->p.z + p->d * v->p.w;};
+	auto calcPointPlaneDistance = [](const Arti3DPlane *p, const Arti3DVSOutput *v) { 	return p->x * v->p.x + p->y * v->p.y + p->z * v->p.z + p->d * v->p.w;};
 
 	// Determine whether two floats has different signs.
 	auto hasDifferentSigns = [](float a, float b) { return (a >= 0.0f && b < 0.0f) || (a < 0.0f && b >= 0.0f);	};
@@ -1453,7 +1406,7 @@ void Arti3DDevice::DrawTileGrid()
 	int iWidth = mRT.back_buffer->w;
 	int iHeight = mRT.back_buffer->h;
 
-	uint32_t gridColor = ToyColor(1.0f, 1.0f, 1.0f).ToUInt32();
+	uint32_t gridColor = CvrtToUint32(a3d::vec4(1.0f,1.0f,1.0f,1.0f));
 
 	//Draw Vertical Lines
 	for (int x = 0; x < iWidth; x += g_ciTileSize)
@@ -1520,7 +1473,7 @@ Arti3DResult Arti3DDevice::InitializeDevice(Arti3DDeviceParameter deviceParam)
 		CreateWorkerThreads();
 
 	InitTile();
-	InitTileMT();
+	CreateTilesAndJobQueue();
 	return ARTI3D_OK;
 }
 
@@ -1528,7 +1481,7 @@ void Arti3DDevice::ReleaseResource()
 {
 }
 
-Arti3DResult Arti3DDevice::InitTileMT()
+Arti3DResult Arti3DDevice::CreateTilesAndJobQueue()
 {
 
 	m_iTileX = (m_iWidth + g_ciTileSize - 1) >> g_ciTileSizeShift;
@@ -1546,25 +1499,30 @@ Arti3DResult Arti3DDevice::InitTileMT()
 	{
 		for (int x = 0; x < m_iTileX; ++x)
 		{
-			Arti3DTile &tile = m_pTiles[y * m_iTileX + x];
-			tile.Create();
-			tile.m_iX = x * g_ciTileSize;
-			tile.m_iY = y * g_ciTileSize;
+			uint32_t iX = x * g_ciTileSize;
+			uint32_t iY = y * g_ciTileSize;
+
+			uint32_t iWidth, iHeight;
+			
+			Arti3DTile *pTile = &m_pTiles[y * m_iTileX + x];
+			
 			if (x == m_iTileX - 1)
 			{
 				int iExtraX = m_iWidth & (g_ciTileSize - 1);
-				tile.m_iWidth = iExtraX ? iExtraX : g_ciTileSize;
+				iWidth = iExtraX ? iExtraX : g_ciTileSize;
 			}
 			else
-				tile.m_iWidth = g_ciTileSize;
+				iWidth = g_ciTileSize;
 
 			if (y == m_iTileY - 1)
 			{
 				int iExtraY = m_iHeight & (g_ciTileSize - 1);
-				tile.m_iHeight = iExtraY ? iExtraY : g_ciTileSize;
+				iHeight = iExtraY ? iExtraY : g_ciTileSize;
 			}
 			else
-				tile.m_iHeight = g_ciTileSize;
+				iHeight = g_ciTileSize;
+
+			pTile->Create(iX, iY, iWidth, iHeight);
 		}
 	}
 
@@ -1699,22 +1657,9 @@ void Arti3DDevice::DrawMesh_MT()
 	// It's Important That The Following Line Comes The Last.
 	m_iStage = 0;
 	
-	
-	// Wait For This Round To End.
-	while (!(m_iStage == 1 && m_iWorkingThread == 0))
-		std::this_thread::yield();
+	SyncronizeWorkerThreads();
+	ClearTilesAndJobQueue();
 
-	ClearJobQueue();
-	
-	uint32_t iTileNum = m_iTileX * m_iTileY;
-
-	for (uint32_t i = 0; i < iTileNum; ++i)
-	{
-		m_pTiles[i].Clear();
-	}
-#ifdef LogoutInfo
-	printf("All Threads Finishes This Round!\n");
-#endif
 }
 
 Arti3DResult Arti3DDevice::InitializeWorkThreads()
@@ -1750,8 +1695,22 @@ Arti3DResult Arti3DDevice::InitializeWorkThreads()
 	return ARTI3D_OK;
 }
 
-void Arti3DDevice::ClearJobQueue()
+Arti3DResult Arti3DDevice::ClearTilesAndJobQueue()
 {
+	// Clear The Tile.
+	uint32_t iTileNum = m_iTileX * m_iTileY;
+
+	for (uint32_t i = 0; i < iTileNum; ++i)
+		m_pTiles[i].Clear();
+
+	// Clear The Job Queue.
 	m_iJobStart = m_iJobStart2 = m_iJobEnd = 0;
+	return ARTI3D_OK;
+}
+
+void Arti3DDevice::SyncronizeWorkerThreads()
+{
+	while (!(m_iStage == 1 && m_iWorkingThread == 0))
+		std::this_thread::yield();
 }
 

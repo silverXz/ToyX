@@ -15,8 +15,12 @@ protected:
 	Arti3DTile();
 	~Arti3DTile();
 
-
-	Arti3DResult Create();
+	// Could Only Be Created By Arti3DDevice;
+	// @param i_iX : Top Left X Coordinate.
+	// @param i_iY : Top Left Y Coordinate.
+	// @param i_iWidth : Width Of This Tile.
+	// @param i_iHeight : Height Of This Tile.
+	Arti3DResult Create(uint32_t i_iX,uint32_t i_iY,uint32_t i_iWidth,uint32_t i_iHeight);
 	
 	// All Triangles Intersecting This Tile Has Been Rasterized!
 	// This Tile Is Ready For Fragment Processing, Set The Flag.

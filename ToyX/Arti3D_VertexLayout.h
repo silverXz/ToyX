@@ -10,6 +10,9 @@ protected:
 	Arti3DVertexLayout();
 	~Arti3DVertexLayout();
 
+	// Create Vertex Layout.
+	// @param iAttribute : The Number Of Attributes Of The Vertex. By Attributes, I Mean Position, Normal, Texture Coordinates, etc.
+	// @param pFormats : Pointer To An Array Of Attribute Formats. The Size Of The Array Mustn't Less Than "iAttribute".
 	Arti3DResult Create(uint32_t iAttribute, Arti3DVertexAttributeFormat *pFormats);
 
 
@@ -33,10 +36,9 @@ public:
 
 private:
 
-	uint32_t				m_iVertexAttribute;
-	uint32_t				m_iFloats;
-	Arti3DVertexAttributeFormat		*m_pVertexAttributeFormat;
-	
+	uint32_t						m_iVertexAttribute;		// Number Of Vertex Attribute.
+	uint32_t						m_iFloats;				// Totoal Number Of Floats Of All Attributes.
+	Arti3DVertexAttributeFormat		*m_pVertexAttributeFormat;		// Pointer To Vertex Attribute Format.
 };
 
 #endif

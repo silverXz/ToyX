@@ -245,9 +245,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			++nFrame;
 
 		pArti3DDev->Begin();
-		pArti3DDev->ClearColorBuffer(ToyColor(0.0f, 0.0f, 0.0f));
+		pArti3DDev->ClearColorBuffer(vec4(0.0f,0.0f, 0.0f,1.0f));
 		pArti3DDev->ClearDepthBuffer();
-		//pArti3DDev->DrawMesh_TileBase();
 		pArti3DDev->DrawMesh_MT();
 		pArti3DDev->End();
 

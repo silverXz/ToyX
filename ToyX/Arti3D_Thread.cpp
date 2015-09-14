@@ -208,7 +208,7 @@ void Arti3DThread::ClipTriangle(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVS
 	}
 
 	// Clipping happens! Do the clip work!
-	Toy_Plane p[6] = {
+	Arti3DPlane p[6] = {
 		{ -1.0f, 0.0f, 0.0f, 1.0f },	// POS_X_PLANE ( pointing at -x )
 		{ 1.0f, 0.0f, 0.0f, 1.0f },		// NEG_X_PLANE ( pointing at +x )
 		{ 0.0f, -1.0f, 0.0f, 1.0f },	// POS_Y_PLANE ( pointing at -y )
@@ -239,7 +239,7 @@ void Arti3DThread::ClipTriangle(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVS
 	// Several lambda expression to help!
 
 	// Calculate the signed distance between a vertex and a plane.
-	auto calcPointPlaneDistance = [](const Toy_Plane *p, const Arti3DVSOutput *v) { 	return p->x * v->p.x + p->y * v->p.y + p->z * v->p.z + p->d * v->p.w; };
+	auto calcPointPlaneDistance = [](const Arti3DPlane *p, const Arti3DVSOutput *v) { 	return p->x * v->p.x + p->y * v->p.y + p->z * v->p.z + p->d * v->p.w; };
 
 	// Determine whether two floats has different signs.
 	auto hasDifferentSigns = [](float a, float b) { return (a >= 0.0f && b < 0.0f) || (a < 0.0f && b >= 0.0f);	};

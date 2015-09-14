@@ -6,7 +6,6 @@
 #include <fstream>
 #include <atomic>
 #include <thread>
-#include "ToyMath.h"
 #include "Shader.h"
 #include "Arti3D_Types.h"
 #include "Arti3D_ForwardDecl.h"
@@ -50,9 +49,11 @@ public:
 	}
 
 
-
+	// Create g_ciMaxThreadNum Threads And Execute The Thread Function "WorkFunc".
 	Arti3DResult CreateWorkerThreads();
 
+	// Distribute Work For Every Threads.
+	// This Function Must Be Called After The Scene Is Loaded And The Index Buffer Is Properly Setup.
 	Arti3DResult InitializeWorkThreads();
 
 	// Create A VertexLayout Instance To Specify The Attibute Data Layout Of A Vertex.
@@ -61,6 +62,8 @@ public:
 	// @param i_pVAFormat : Pointer To An Array Of Arti3DVertexAttributeFormat To Specify The Format Of Every Vertex Attribute. It Should At Least Have "iAttribute" Elements.
 	Arti3DResult CreateVertexLayout(Arti3DVertexLayout **o_pVertexLayout, uint32_t iAttribute, Arti3DVertexAttributeFormat *i_pVAFormat);
 	
+	// Set Current Vertex Layout.
+	// @param pVertexBuffer : Pointer To The Source Vertex Layout.
 	Arti3DResult SetVertexLayout(Arti3DVertexLayout *pLayout);
 
 	// Create Buffer For Triangle Vertices. By Creating, I Mean Allocating Space.
@@ -96,14 +99,12 @@ public:
 	void SetMatrix(Arti3DMatrixType matrixType, const a3d::mat4& m);
 	void SetViewport(int x, int y, int width, int height);
 
-	void ClearColorBuffer(const ToyColor& color);
+	void ClearColorBuffer(const a3d::vec4& color);
 	void ClearDepthBuffer(float cDepth = 0.0f);
 
-	void Draw3DSolidTriangle(const a3d::vec4& p1,const a3d::vec4& p2,const a3d::vec4& p3,const ToyColor& c);
+	void Draw3DSolidTriangle(const a3d::vec4& p1,const a3d::vec4& p2,const a3d::vec4& p3,const a3d::vec4& c);
 
-	void LoadCube();
 
-	void StopAllThreads();
 
 	void DrawMesh();
 
@@ -112,10 +113,21 @@ public:
 	void DrawMesh_MT();
 
 private:
+	// Stop All Working Threads. It Is Called In The Dtor Before
+	// Thread Objects Are Deleted.
+	void StopAllThreads();
 
 	void InitTile();
 
-	Arti3DResult InitTileMT();
+	// As The Name Implies, Create The Tiles And Job Queue.
+	Arti3DResult CreateTilesAndJobQueue();
+
+	// Clean Up The Job Queue For Next Frame.
+	Arti3DResult ClearTilesAndJobQueue();
+
+	// Wait For All Worker Threads Finished Rendering Current Frame.
+	void SyncronizeWorkerThreads();
+
 
 	// For Debug Use.
 	void DrawTileGrid();
@@ -158,7 +170,7 @@ private:
 	// !Not implemented yet!
 	void ProcessP();
 
-	void ClearJobQueue();
+
 	
 	// Helper Functions
 	inline int iRound(float f)
