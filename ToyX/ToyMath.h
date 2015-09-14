@@ -4,7 +4,7 @@
 #include <math.h>
 #include <iostream>
 #include <assert.h>
-namespace toy
+namespace a3d
 {
 
 	const float PI = 3.1415926f;

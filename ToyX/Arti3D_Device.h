@@ -39,7 +39,7 @@ public:
 	void Draw2DLines(int x1, int y1, int x2, int y2, uint32_t color);
 
 
-	void Draw3DLines(const toy::vec4& p1, const toy::vec4 p2, uint32_t color);
+	void Draw3DLines(const a3d::vec4& p1, const a3d::vec4 p2, uint32_t color);
 
 	inline void SetPixelColor(int x, int y, uint32_t c)
 	{
@@ -51,18 +51,35 @@ public:
 
 
 
-	Arti3DResult InitializeThreads();
+	Arti3DResult CreateWorkerThreads();
 
+	Arti3DResult InitializeWorkThreads();
+
+	// Create A VertexLayout Instance To Specify The Attibute Data Layout Of A Vertex.
+	// @param o_pVertexLayout : Pointer To The Target Arti3DVertexLayout Pointer.
+	// @param iAttribute : The Number Of Attributes A Vertex Has.
+	// @param i_pVAFormat : Pointer To An Array Of Arti3DVertexAttributeFormat To Specify The Format Of Every Vertex Attribute. It Should At Least Have "iAttribute" Elements.
 	Arti3DResult CreateVertexLayout(Arti3DVertexLayout **o_pVertexLayout, uint32_t iAttribute, Arti3DVertexAttributeFormat *i_pVAFormat);
 	
 	Arti3DResult SetVertexLayout(Arti3DVertexLayout *pLayout);
 
+	// Create Buffer For Triangle Vertices. By Creating, I Mean Allocating Space.
+	// @param o_pVertexBuffer : Pointer To The Target Vertex Buffer Pointer.
+	// @param iLength : The Storage That The Target Vertex Buffer Needs, In Bytes.
 	Arti3DResult CreateVertexBuffer(Arti3DVertexBuffer **o_pVertexBuffer, uint32_t iLength);
 
+	// Set Current Vertex Buffer.
+	// @param pVertexBuffer : Pointer To The Source Vertex Buffer.
 	Arti3DResult SetVertexBuffer(Arti3DVertexBuffer *pVertexBuffer);
 
+	// Create Buffer For Triangle Indices. By Creating, I Mean Allocating Space.
+	// @param o_pIndexBuffer : Pointer To The Target Index Buffer Pointer.
+	// @param iLength : The Storage That The Buffer Needs, In Bytes.
+	// @param format : The Format Of Index. ARTI3D_INDEX16 Or ARTI3D_INDEX32.
 	Arti3DResult CreateIndexBuffer(Arti3DIndexBuffer **o_pIndexBuffer, uint32_t iLength,Arti3DFormat format);
 
+	// Set Current Index Buffer.
+	// @param pIndexBuffer : Pointer To The Source Index Buffer.
 	Arti3DResult SetIndexBuffer(Arti3DIndexBuffer *pIndexBuffer);
 
 	void SetVertexShader(Arti3DVertexShader pfnVS)
@@ -76,13 +93,13 @@ public:
 	}
 
 	// Render State Related
-	void SetMatrix(Arti3DMatrixType matrixType, const toy::mat4& m);
+	void SetMatrix(Arti3DMatrixType matrixType, const a3d::mat4& m);
 	void SetViewport(int x, int y, int width, int height);
 
 	void ClearColorBuffer(const ToyColor& color);
 	void ClearDepthBuffer(float cDepth = 0.0f);
 
-	void Draw3DSolidTriangle(const toy::vec4& p1,const toy::vec4& p2,const toy::vec4& p3,const ToyColor& c);
+	void Draw3DSolidTriangle(const a3d::vec4& p1,const a3d::vec4& p2,const a3d::vec4& p3,const ToyColor& c);
 
 	void LoadCube();
 
@@ -141,7 +158,7 @@ private:
 	// !Not implemented yet!
 	void ProcessP();
 
-	
+	void ClearJobQueue();
 	
 	// Helper Functions
 	inline int iRound(float f)
@@ -165,7 +182,7 @@ private:
 	void ReleaseResource();
 
 	// Compute Varyings Gradient Along Axis X&Y.
-	void ComputeGradient(float C, float di21, float di31, float dx21, float dy21, float dx31, float dy31, toy::vec2 *g);
+	void ComputeGradient(float C, float di21, float di31, float dx21, float dy21, float dx31, float dy31, a3d::vec2 *g);
 
 private:
 	Arti3DIndexBuffer		*m_pIndexBuffer;

@@ -3,7 +3,7 @@
 #include "Arti3D_Device.h"
 #include "Arti3D_Types.h"
 
-using namespace toy;
+using namespace a3d;
 
 void NewCubeVS(Arti3DVSInput *i_pVSInput, Arti3DShaderUniform* i_pUniform, Arti3DVSOutput *o_pVSOutput)
 {

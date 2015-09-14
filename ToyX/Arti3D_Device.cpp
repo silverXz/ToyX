@@ -12,7 +12,7 @@
 #include "Arti3D_Tile.h"
 
 
-using namespace toy;
+using namespace a3d;
 
 Arti3DDevice::Arti3DDevice() : m_pIndexBuffer(nullptr),
 	m_pVertexBuffer(nullptr),
@@ -58,7 +58,7 @@ void Arti3DDevice::ClearDepthBuffer(float cDepth)
 	SDL_FillRect(mRT.z_buffer, nullptr, 0);
 }
 
-void Arti3DDevice::SetMatrix(Arti3DMatrixType matrixType, const toy::mat4& m)
+void Arti3DDevice::SetMatrix(Arti3DMatrixType matrixType, const a3d::mat4& m)
 {
 	Arti3DShaderUniform &rgu = mRC.globals;
 	switch (matrixType)
@@ -124,7 +124,7 @@ void Arti3DDevice::Draw2DLines(int x1, int y1, int x2, int y2, uint32_t color)
 	}
 }
 
-void Arti3DDevice::Draw3DLines(const toy::vec4& p1, const toy::vec4 p2, uint32_t color)
+void Arti3DDevice::Draw3DLines(const a3d::vec4& p1, const a3d::vec4 p2, uint32_t color)
 {
 	vec4 clip1 = mRC.globals.mvp * p1;
 	vec4 clip2 = mRC.globals.mvp * p2;
@@ -141,7 +141,7 @@ void Arti3DDevice::Draw3DLines(const toy::vec4& p1, const toy::vec4 p2, uint32_t
 	Draw2DLines(iRound(clip1.x), iRound(clip1.y), iRound(clip2.x), iRound(clip2.y), color);
 }
 
-void Arti3DDevice::Draw3DSolidTriangle(const toy::vec4& p1, const toy::vec4& p2, const toy::vec4& p3, const ToyColor& c)
+void Arti3DDevice::Draw3DSolidTriangle(const a3d::vec4& p1, const a3d::vec4& p2, const a3d::vec4& p3, const ToyColor& c)
 {
 	vec4 clip1 = mRC.globals.mvp * p1;
 	vec4 clip2 = mRC.globals.mvp * p2;
@@ -560,7 +560,7 @@ void Arti3DDevice::DrawMesh_TileBase()
 }
 
 
-void Arti3DDevice::ComputeGradient(float C, float di21, float di31, float dx21, float dy21, float dx31, float dy31, toy::vec2 *g)
+void Arti3DDevice::ComputeGradient(float C, float di21, float di31, float dx21, float dy21, float dx31, float dy31, a3d::vec2 *g)
 {
 	float A = di21 * dy31 - di31 * dy21;
 	float B = di21 * dx31 - di31 * dx21;
@@ -1221,7 +1221,7 @@ void Arti3DDevice::RasterizeTile()
 							frag.y = y + k;
 							frag.faceID = tf.id;
 							frag.mask = im;
-							frag.coverType = ARTI3D_FC_FRAGMENT;
+							frag.coverType = ARTI3D_FC_MASKED;
 							tile.aFragment.push_back(frag);
 						}
 
@@ -1246,7 +1246,7 @@ void Arti3DDevice::RasterizeTile()
 							frag.y = y + k;
 							frag.faceID = tf.id;
 							frag.mask = im;
-							frag.coverType = ARTI3D_FC_FRAGMENT;
+							frag.coverType = ARTI3D_FC_MASKED;
 							tile.aFragment.push_back(frag);
 						}
 						B1 = _mm_sub_epi32(B1, offsetDDX21);
@@ -1275,7 +1275,7 @@ void Arti3DDevice::RenderFragments()
 			case ARTI3D_FC_BLOCK:
 				RenderBlockFragments(&frag);
 				break;
-			case ARTI3D_FC_FRAGMENT:
+			case ARTI3D_FC_MASKED:
 				RenderMaskedFragments(&frag);
 				break;
 			default:
@@ -1517,7 +1517,7 @@ Arti3DResult Arti3DDevice::InitializeDevice(Arti3DDeviceParameter deviceParam)
 	m_iHeight = deviceParam.iHeight;
 
 	if (deviceParam.bMultiThread)
-		InitializeThreads();
+		CreateWorkerThreads();
 
 	InitTile();
 	InitTileMT();
@@ -1593,7 +1593,7 @@ Arti3DResult Arti3DDevice::SetVertexLayout(Arti3DVertexLayout *pLayout)
 	return ARTI3D_OK;
 }
 
-Arti3DResult Arti3DDevice::InitializeThreads()
+Arti3DResult Arti3DDevice::CreateWorkerThreads()
 {
 	m_pThreads = new Arti3DThread[g_ciMaxThreadNum];
 	if (!m_pThreads)
@@ -1692,13 +1692,66 @@ void Arti3DDevice::DrawMesh_MT()
 
 
 	// Activate all threads
-	m_iStage = 0;
+	// !!!!! Note !!!!!
+	// It's Important That The Following Line Comes First! 
 	m_iWorkingThread = g_ciMaxThreadNum;
-
+	
+	// It's Important That The Following Line Comes The Last.
+	m_iStage = 0;
+	
+	
 	// Wait For This Round To End.
 	while (!(m_iStage == 1 && m_iWorkingThread == 0))
 		std::this_thread::yield();
-	std::this_thread::sleep_for(std::chrono::seconds(1));
+
+	ClearJobQueue();
+	
+	uint32_t iTileNum = m_iTileX * m_iTileY;
+
+	for (uint32_t i = 0; i < iTileNum; ++i)
+	{
+		m_pTiles[i].Clear();
+	}
+#ifdef LogoutInfo
 	printf("All Threads Finishes This Round!\n");
+#endif
+}
+
+Arti3DResult Arti3DDevice::InitializeWorkThreads()
+{
+	// Allocate Work Load For Every Threads.
+	uint32_t iNumTriangle = m_pIndexBuffer->iGetIndexNum() / 3;
+	if (m_pIndexBuffer->iGetIndexNum() % 3 != 0)
+		return ARTI3D_INVALID_BUFFER_SIZE;
+
+	uint32_t iFacePerThread = iNumTriangle / g_ciMaxThreadNum;
+	uint32_t iExtraFace = iNumTriangle % g_ciMaxThreadNum;
+
+	uint32_t workLoad[g_ciMaxThreadNum];
+	
+	for (auto& x : workLoad)
+		x = iFacePerThread;
+
+	if (iExtraFace)
+	{
+		for (uint32_t i = 0; i < iExtraFace; ++i)
+			++workLoad[i];
+	}
+
+	uint32_t iStart = 0, iEnd = 0;
+
+	for (uint32_t i = 0; i < g_ciMaxThreadNum; ++i)
+	{
+		iEnd = iStart + workLoad[i] * 3 - 1;
+		m_pThreads[i].DistributeWorkLoad(i, iStart, iEnd);
+		iStart = iEnd + 1;
+	}
+
+	return ARTI3D_OK;
+}
+
+void Arti3DDevice::ClearJobQueue()
+{
+	m_iJobStart = m_iJobStart2 = m_iJobEnd = 0;
 }
 

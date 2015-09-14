@@ -35,7 +35,7 @@
 #include "Arti3D_VertexBuffer.h"
 #include "Arti3D_IndexBuffer.h"
 
-using namespace toy;
+using namespace a3d;
 
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
@@ -141,14 +141,14 @@ Arti3DResult CreateAndInitializeDevice(Arti3DDevice **io_pArti3DDev,Arti3DDevice
 
 	// Upload Cube Data To VertexBuffer
 	std::vector<std::vector<float>> xv{
-		{ -len, len, len, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f },
-		{ len, len, len, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f },
-		{ len, len, -len, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f },
-		{ -len, len, -len, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f },
-		{ -len, -len, len, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f },
-		{ len, -len, len, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f },
-		{ len, -len, -len, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f },
-		{ -len, -len, -len, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f }
+		{ -len, len, len, 1.0f,		1.0f, 0.0f, 0.0f, 1.0f },	//0
+		{ len, len, len, 1.0f,		0.0f, 1.0f, 0.0f, 1.0f },	//1
+		{ len, len, -len, 1.0f,		0.0f, 0.0f, 1.0f, 1.0f },	//2
+		{ -len, len, -len, 1.0f,	0.0f, 1.0f, 1.0f, 1.0f },	//3
+		{ -len, -len, len, 1.0f,	1.0f, 0.0f, 1.0f, 1.0f },	//4
+		{ len, -len, len, 1.0f,		1.0f, 1.0f, 0.0f, 1.0f },	//5
+		{ len, -len, -len, 1.0f,	1.0f, 1.0f, 1.0f, 0.0f },	//6
+		{ -len, -len, -len, 1.0f,	0.0f, 0.0f, 0.0f, 1.0f }	//7
 	};
 
 	for (int i = 0; i < iVertex; ++i)
@@ -168,6 +168,8 @@ Arti3DResult CreateAndInitializeDevice(Arti3DDevice **io_pArti3DDev,Arti3DDevice
 	memcpy(pDest, xid, sizeof(xid));
 
 	(*io_pArti3DDev)->SetIndexBuffer(pIndexBuffer);
+
+	(*io_pArti3DDev)->InitializeWorkThreads();
 
 	return ARTI3D_OK;
 }
@@ -214,7 +216,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	auto nFrame = 0;
 
 	auto rotAngle = 0.0f;
-	const auto rotSpeed = toy::PI / 20.0f;
+	const auto rotSpeed = a3d::PI / 20.0f;
 
 	while (g_Running)
 	{
@@ -226,10 +228,10 @@ int _tmain(int argc, _TCHAR* argv[])
 		past += curTime - last;
 		auto dt = (curTime - last) * 0.001;
 		rotAngle += rotSpeed * dt;
-		if (rotAngle > toy::TWOPI)
-			rotAngle -= toy::TWOPI;
+		if (rotAngle > a3d::TWOPI)
+			rotAngle -= a3d::TWOPI;
 
-		pArti3DDev->SetMatrix(TOY_MATRIX_MODEL, toy::rotate(rotAngle, toy::vec3(0.0f, 1.0f, 0.0f)));
+		pArti3DDev->SetMatrix(TOY_MATRIX_MODEL, a3d::rotate(rotAngle, a3d::vec3(0.0f, 1.0f, 0.0f)));
 
 		last = curTime;
 
@@ -254,6 +256,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	SDL_Quit();
 	DestroyDevice(&pArti3DDev);
+
+	std::this_thread::sleep_for(std::chrono::seconds(1));
 
 	_CrtDumpMemoryLeaks();
 

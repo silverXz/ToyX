@@ -15,7 +15,7 @@ const int g_ciMaxClipVertexNumPerPatch = 5 * g_ciMaxVertexNumPerPatch;
 const int g_ciCacheSize = 32;
 const int g_ciMaxVaryingNum = 12;
 const int g_ciMaxClipVertex = 9;
-const int g_ciMaxThreadNum = 8;
+const int g_ciMaxThreadNum = 10;
 const int g_ciMaxTextureUnit = 16;
 const int g_ciMaxVSRegister = 8;
 const int g_ciMaxFaceNumPerTile = 128;
@@ -88,15 +88,15 @@ enum GeometryDataType {
 
 struct Toy_Vertex
 {
-	toy::vec4 p;
-	toy::vec4 c;
-	toy::vec4 n;
+	a3d::vec4 p;
+	a3d::vec4 c;
+	a3d::vec4 n;
 	float u, v;
 };
 
 struct Arti3DVSOutput
 {
-	toy::vec4 p;
+	a3d::vec4 p;
 	float varyings[g_ciMaxVaryingNum];
 };
 
@@ -127,8 +127,8 @@ struct Arti3DTransformedFace
 	int fp2[2];
 	int fp3[2];
 
-	toy::vec2 dw;
-	toy::vec2 dv[g_ciMaxVaryingNum];
+	a3d::vec2 dw;
+	a3d::vec2 dv[g_ciMaxVaryingNum];
 };
 
 
@@ -138,6 +138,7 @@ enum Arti3DResult {
 	ARTI3D_NULL_PARAMETER,
 	ARTI3D_INVALID_ENUM,
 	ARTI3D_INVALID_FORMAT,
+	ARTI3D_INVALID_BUFFER_SIZE,
 	ARTI3D_RANGE_EXCEED,
 	ARTI3D_VARYING_EXCEED,
 	ARTI3D_OUT_OF_MEMORY
@@ -148,11 +149,11 @@ enum Arti3DResult {
 
 struct Arti3DShaderUniform
 {
-	toy::mat4 model;
-	toy::mat4 view;
-	toy::mat4 projection;
-	toy::mat4 mvp;
-	toy::vec4 viewport;
+	a3d::mat4 model;
+	a3d::mat4 view;
+	a3d::mat4 projection;
+	a3d::mat4 mvp;
+	a3d::vec4 viewport;
 };
 
 struct RenderContext
@@ -229,7 +230,7 @@ enum Arti3DFragmentCoverage
 {
 	ARTI3D_FC_TILE = 0,
 	ARTI3D_FC_BLOCK,
-	ARTI3D_FC_FRAGMENT,
+	ARTI3D_FC_MASKED,
 };
 
 struct Arti3D_TiledFace
@@ -240,8 +241,8 @@ struct Arti3D_TiledFace
 
 struct Arti3DFragment
 {
-	int x, y;
-	int mask;
+	int x, y;		// Top Left Coordinates Of This Fragment.
+	int mask;		// Coverage Mask, Only Valid When "coverType" = ARTI3D_MASKED.
 	int faceID;
 	int threadID;
 	Arti3DFragmentCoverage	coverType;
@@ -264,7 +265,7 @@ struct Arti3_DTile
 };
 
 
-typedef toy::vec4 ShaderRegister;
+typedef a3d::vec4 ShaderRegister;
 
 struct Arti3DVSInput {
 	ShaderRegister ShaderInputs[g_ciMaxVSRegister];

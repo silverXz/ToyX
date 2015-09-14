@@ -28,7 +28,7 @@ Arti3DThread::~Arti3DThread()
 	SAFE_DELETE_ARRAY(m_pTransformedFace);
 }
 
-void Arti3DThread::ClearCache()
+void Arti3DThread::ClearCacheAndBuffer()
 {
 	m_iTransformedFace = 0;
 
@@ -61,37 +61,12 @@ void Arti3DThread::WorkFunc(Arti3DThread *pThread)
 	while (pThread->m_pParent->m_iStage == 1)
 		std::this_thread::yield();
 
-	printf("Thread #%d Passed Waiting..\n",pThread->m_iThread);
-
 	while (!pDev->m_bThreadStop)
 	{
-#ifdef _DEBUG
-		
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-		// Till Now, All Triangle Has Been Processed And Added To JobQueue.
-		// Next, We What To Fetch Tile From JobQueue And Rasterize Tile To Generate Fragments.
-		// But!!!!! What Have To Wait For All Thread Finishing What We Have Done Now.
+		pThread->ClearCacheAndBuffer();
 
-		// All Thread Are Done For The First Stage!
-		if (--pDev->m_iWorkingThread == 0)
-		{
-			printf("All Threads Finishes Stage 0.\n");
-			pDev->m_iWorkingThread = g_ciMaxThreadNum;
-			pDev->m_iStage = 1;
-		}
-		while (pDev->m_iStage == 0)
-			std::this_thread::yield();
-
-		// OK,Then.Let's Take Things To The Next Level! 
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-
-		if(--pDev->m_iWorkingThread == 0)
-			printf("All Threads Finishes Stage 1.\n");
-		
-		while (pDev->m_iStage == 1)
-			std::this_thread::yield();
-#else
 		pThread->ProcessVertex();
+		
 		pThread->PreProcessTile();
 
 		// Till Now, All Triangle Has Been Processed And Added To JobQueue.
@@ -99,11 +74,13 @@ void Arti3DThread::WorkFunc(Arti3DThread *pThread)
 		// But!!!!! What Have To Wait For All Thread Finishing What We Have Done Now.
 		
 		// All Thread Are Done For The First Stage!
+		
 		if (--pDev->m_iWorkingThread == 0)
 		{
 			pDev->m_iWorkingThread = g_ciMaxThreadNum;
 			pDev->m_iStage = 1;
-		}
+		} 
+
 		while (pDev->m_iStage == 0)
 			std::this_thread::yield();
 		
@@ -125,11 +102,10 @@ void Arti3DThread::WorkFunc(Arti3DThread *pThread)
 			pThread->RenderFragment(pTile);
 		}
 
-		if (--pDev->m_iWorkingThread == 0)
-			pDev->m_iWorkingThread = g_ciMaxThreadNum;
-		while (pDev->m_iStage == 1)
+		--pDev->m_iWorkingThread;
+		
+		while (pDev->m_iStage == 1 && !pDev->m_bThreadStop)
 			std::this_thread::yield();
-#endif
 	}
 	printf("Thread #%d returns.\n", pThread->m_iThread);
 	return;
@@ -137,7 +113,6 @@ void Arti3DThread::WorkFunc(Arti3DThread *pThread)
 
 void Arti3DThread::ProcessVertex()
 {
-	ClearCache();
 
 	for (uint32_t i = m_iStart; i < m_iEnd; i+=3)
 	{
@@ -234,12 +209,12 @@ void Arti3DThread::ClipTriangle(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVS
 
 	// Clipping happens! Do the clip work!
 	Toy_Plane p[6] = {
-		{ -1.0f, 0.0f, 0.0f, 1.0f }, // POS_X_PLANE ( pointing at -x )
-		{ 1.0f, 0.0f, 0.0f, 1.0f },	// NEG_X_PLANE ( pointing at +x )
+		{ -1.0f, 0.0f, 0.0f, 1.0f },	// POS_X_PLANE ( pointing at -x )
+		{ 1.0f, 0.0f, 0.0f, 1.0f },		// NEG_X_PLANE ( pointing at +x )
 		{ 0.0f, -1.0f, 0.0f, 1.0f },	// POS_Y_PLANE ( pointing at -y )
-		{ 0.0f, 1.0f, 0.0f, 1.0 },	// NEG_Y_PLANE ( pointing at +y )
+		{ 0.0f, 1.0f, 0.0f, 1.0 },		// NEG_Y_PLANE ( pointing at +y )
 		{ 0.0f, 0.0f, -1.0f, 1.0f },	// POS_Z_PLANE ( pointing at -z )
-		{ 0.0f, 0.0f, 1.0f, 0.0f }	// NEG_Z_PLANE ( pointing at +z )
+		{ 0.0f, 0.0f, 1.0f, 0.0f }		// NEG_Z_PLANE ( pointing at +z )
 	};
 
 	Arti3DClipMask mk[6] = {
@@ -389,7 +364,7 @@ void Arti3DThread::AddTransformedFace(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Ar
 	m_pTransformedFace[m_iTransformedFace++] = f;
 }
 
-void Arti3DThread::ComputeTriangleGradient(float C, float di21, float di31, float dx21, float dy21, float dx31, float dy31, toy::vec2 *o_pVec2)
+void Arti3DThread::ComputeTriangleGradient(float C, float di21, float di31, float dx21, float dy21, float dx31, float dy31, a3d::vec2 *o_pVec2)
 {
 	float A = di21 * dy31 - di31 * dy21;
 	float B = di21 * dx31 - di31 * dx21;
@@ -418,8 +393,7 @@ void Arti3DThread::PreProcessTile()
 		int faceOrient = DX13*DY21 - DX21*DY13;
 
 		if (faceOrient > 0)
-			return;
-
+			continue;
 
 		int C1 = -DY21 * f->fp1[0] + DX21 * f->fp1[1];
 		int C2 = -DY32 * f->fp2[0] + DX32 * f->fp2[1];
@@ -508,7 +482,9 @@ void Arti3DThread::PreProcessTile()
 
 				// If This Tile Is Not Already Added To The Job Queue, Add It And Set The Flag.
 				if (!tile.m_bAddedToJobQueue.test_and_set())
+				{
 					m_pParent->m_pJobQueue[m_pParent->m_iJobEnd++] = iTile;
+				}
 			}
 		}
 	}
@@ -655,7 +631,7 @@ void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
 							frag.faceID = iFace;
 							frag.threadID = i;
 							frag.mask = im;
-							frag.coverType = ARTI3D_FC_FRAGMENT;
+							frag.coverType = ARTI3D_FC_MASKED;
 							io_pTile->m_vFragments.push_back(frag);
 						}
 
@@ -681,7 +657,7 @@ void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
 							frag.faceID = iFace;
 							frag.threadID = i;
 							frag.mask = im;
-							frag.coverType = ARTI3D_FC_FRAGMENT;
+							frag.coverType = ARTI3D_FC_MASKED;
 							io_pTile->m_vFragments.push_back(frag);
 						}
 						B1 = _mm_sub_epi32(B1, offsetDDX21);
@@ -706,7 +682,7 @@ void Arti3DThread::RenderFragment(Arti3DTile *i_pTile)
 		case ARTI3D_FC_BLOCK:
 			RenderBlockFragments(&frag);
 			break;
-		case ARTI3D_FC_FRAGMENT:
+		case ARTI3D_FC_MASKED:
 			RenderMaskedFragments(&frag);
 			break;
 		default:

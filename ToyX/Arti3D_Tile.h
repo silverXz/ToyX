@@ -29,14 +29,16 @@ protected:
 
 private:
 	int	m_iWidth;	// Width Of This Tile
-	int 	m_iHeight;	// Height Of This Tile
-	int	m_iX		// Top Left X Coordinate Of This Tile.
-	int 	m_iY;		// Top Left Y Coordinate Of This Tile.
+	int m_iHeight;	// Height Of This Tile
+	int	m_iX;		// Top Left X Coordinate Of This Tile.
+	int m_iY;		// Top Left Y Coordinate Of This Tile.
 
 	// Face ID Buffer For Every Working Thread. The Buffer Size = threadNum * maxFaceNumPerTile.
 	uint32_t		**m_ppFaceIndexBuffer;
+	
 	// Sizes of Face ID Buffer For Every Working Thread.
 	uint32_t		*m_pIndexBufferSize;
+	
 	// Tile Coverage Type For Very Face In The Face ID Buffer. Its Size = threadNum * maxFaceNumPerTile.
 	Arti3DTileCoverage	**m_ppTileCoverage;
 

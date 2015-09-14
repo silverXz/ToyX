@@ -14,15 +14,14 @@ protected:
 	Arti3DThread();
 	~Arti3DThread();
 
-
-public:
-	// Clear All The Local Caches: Vertex Cache, Transformed Face Buffer.
-	void ClearCache();
-	
 	// Create A New Thread.
 	// @param pParent : Parent Who Created This Thread.
 	// @param iThread : Thread ID [0,g_ciMaxThreadNum).
 	Arti3DResult Create(Arti3DDevice *pParent,uint32_t iThread);
+
+public:
+	// Clear All The Local Caches And Buffers: Vertex Cache, Transformed Face Buffer.
+	void ClearCacheAndBuffer();
 
 	// Distribute Work For Every Thread.
 	// @param iThread : Thread ID [0,g_ciMaxThreadNum).
@@ -93,7 +92,7 @@ private:
 	void RenderMaskedFragments(Arti3DFragment *i_pFrag);
 	
 	// Compute Attribute Gradient Along X And Y For A Given Triangle.
-	inline void ComputeTriangleGradient(float C, float di21, float di31, float dx21, float dy21, float dx31, float dy31, toy::vec2 *o_pVec2);
+	inline void ComputeTriangleGradient(float C, float di21, float di31, float dx21, float dy21, float dx31, float dy31, a3d::vec2 *o_pVec2);
 
 	inline void CalcVaryings(Arti3DTransformedFace* f, int x, int y, __m128 &W0, __m128 &W1, __m128 &WDY, __m128 *V0, __m128 *V1, __m128 *VDY);
 	
@@ -104,14 +103,15 @@ private:
 	inline __m128i ConvertColorFormat(SSE_Color3 &src);
 
 private:
-	Arti3DVertexCache			*m_pVertexCache;	// Vertex Cache
-	Arti3DTransformedFace			*m_pTransformedFace;	// Local Buffer For Transformed Face.
-	uint32_t				m_iTransformedFace;	// Size Of Local Buffer.
-	uint32_t				m_iThread;		// Thread Index.
-	uint32_t				m_iStart;		// Work Load Start Index.
-	uint32_t				m_iEnd;			// Work Load End Index.
+	Arti3DVertexCache			*m_pVertexCache;		// Vertex Cache
+	Arti3DTransformedFace		*m_pTransformedFace;	// Local Buffer For Transformed Face.
+	
+	uint32_t					m_iTransformedFace;		// Size Of Local Buffer.
+	uint32_t					m_iThread;				// Thread Index.
+	uint32_t					m_iStart;				// Work Load Start Index.
+	uint32_t					m_iEnd;					// Work Load End Index.
 
-	Arti3DDevice				*m_pParent;		// Parent Who Created This Thread.
+	Arti3DDevice				*m_pParent;				// Parent Who Created This Thread.
 };
 
 

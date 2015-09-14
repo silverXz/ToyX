@@ -75,4 +75,5 @@ void Arti3DTile::Clear()
 	memset(m_pIndexBufferSize, 0, sizeof(uint32_t)*g_ciMaxThreadNum);
 	m_bAddedToJobQueue.clear();
 	m_bFinishedRasterization = false;
+	m_vFragments.clear();
 }
