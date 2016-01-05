@@ -36,6 +36,12 @@ protected:
 public:
 	Arti3DResult Clear();
 
+	void*	pGetPixelsDataPtr();
+
+	int iGetWidth() ;
+	
+	int iGetHeight() ;
+
 	Arti3DFormat	fmtGetFormat() const;
 
 private:

@@ -9,6 +9,7 @@ class Arti3DRenderTarget
 protected:
 
 	friend class Arti3DDevice;
+	friend class Arti3DThread;
 
 	Arti3DRenderTarget(Arti3DDevice *i_pParent);
 	~Arti3DRenderTarget();

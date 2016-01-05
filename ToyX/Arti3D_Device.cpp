@@ -51,17 +51,11 @@ Arti3DDevice::~Arti3DDevice()
 	SAFE_DELETE_ARRAY(m_pTiles);
 	SAFE_DELETE_ARRAY(m_pJobQueue);
 
-//	SDL_Quit();
+	SDL_Quit();
 }
 
 Arti3DResult Arti3DDevice::InitializeDevice(Arti3DDeviceParameter deviceParam)
 {
-// 	if (SDL_Init(SDL_INIT_VIDEO) != 0)
-// 	{
-// 		fprintf_s(stderr, "SDL_Init Failed!\n");
-// 		return ARTI3D_UNKOWN;
-// 	}
-
 
 	m_iWidth = deviceParam.iWidth;
 	m_iHeight = deviceParam.iHeight;
@@ -77,14 +71,23 @@ Arti3DResult Arti3DDevice::InitializeDevice(Arti3DDeviceParameter deviceParam)
 
 void Arti3DDevice::ClearColorBuffer(const a3d::vec4& color)
 {
-	int hr = SDL_FillRect(mRT.back_buffer, nullptr, CvrtToUint32(color));
+	Arti3DSurface *pbb = m_pRenderTarget ? m_pRenderTarget->m_pBackbuffer : nullptr;
+
+	if (!pbb)
+		return;
+	int hr = SDL_FillRect(pbb->m_pSurface, nullptr, CvrtToUint32(color));
+
 	if (hr)
 		std::cerr << "Failed to clear color buffer!\n";
 }
 
 void Arti3DDevice::ClearDepthBuffer(float cDepth)
 {
-	SDL_FillRect(mRT.z_buffer, nullptr, 0);
+	Arti3DSurface *pzb = m_pRenderTarget ? m_pRenderTarget->m_pZBuffer : nullptr;
+	if (!pzb)
+		return;
+
+	SDL_FillRect(pzb->m_pSurface, nullptr, 0);
 }
 
 void Arti3DDevice::SetMatrix(Arti3DMatrixType matrixType, const a3d::mat4& m)
@@ -170,8 +173,25 @@ void Arti3DDevice::Draw3DLines(const a3d::vec4& p1, const a3d::vec4 p2, uint32_t
 	Draw2DLines(iRound(clip1.x), iRound(clip1.y), iRound(clip2.x), iRound(clip2.y), color);
 }
 
+void Arti3DDevice::SetPixelColor(int x, int y, uint32_t c)
+{
+	Arti3DSurface *pbb = m_pRenderTarget ? m_pRenderTarget->pGetBackBuffer() : nullptr;
+
+	if (!pbb || x >= pbb->m_iWidth || y >= pbb->m_iHeight)	
+		return;
+
+	void *pp = pbb->pGetPixelsDataPtr();
+
+	((uint32_t*)pp)[y * pbb->m_iWidth + x] = c;
+}
+
 void Arti3DDevice::Draw3DSolidTriangle(const a3d::vec4& p1, const a3d::vec4& p2, const a3d::vec4& p3, const a3d::vec4& c)
 {
+	Arti3DSurface *pbb = m_pRenderTarget ? m_pRenderTarget->m_pBackbuffer : nullptr;
+
+	if (!pbb)
+		return;
+
 	vec4 clip1 = mRC.globals.mvp * p1;
 	vec4 clip2 = mRC.globals.mvp * p2;
 	vec4 clip3 = mRC.globals.mvp * p3;
@@ -187,37 +207,46 @@ void Arti3DDevice::Draw3DSolidTriangle(const a3d::vec4& p1, const a3d::vec4& p2,
 	float invW3 = 1.0f / clip3.w;
 	clip3.x *= invW3;
 	clip3.y *= invW3;
+	
+	int w = pbb->m_iWidth;
+	int h = pbb->m_iHeight;
 
-	float half_width = 0.5f * mRT.back_buffer->w;
-	float half_height = 0.5f * mRT.back_buffer->h;
+	float half_width = 0.5f * w;
+	float half_height = 0.5f * h;
 
 	clip1.x = (clip1.x + 1.0f) * half_width;
-	clip1.y = mRT.back_buffer->h - (clip1.y + 1.0f) * half_height;
+	clip1.y = h - (clip1.y + 1.0f) * half_height;
 	clip2.x = (clip2.x + 1.0f) * half_width;
-	clip2.y = mRT.back_buffer->h - (clip2.y + 1.0f) * half_height;
+	clip2.y = h - (clip2.y + 1.0f) * half_height;
 	clip3.x = (clip3.x + 1.0f) * half_width;
-	clip3.y = mRT.back_buffer->h - (clip3.y + 1.0f) * half_height;	
+	clip3.y = h - (clip3.y + 1.0f) * half_height;	
 }
 
 void Arti3DDevice::Begin()
 {
-	if (!mRT.back_buffer)
+	Arti3DSurface *pbb = m_pRenderTarget ? m_pRenderTarget->m_pBackbuffer : nullptr;
+
+	if (!pbb)
 	{
 		std::cerr << "ToyRender::Begin(): No Backbuffer!\n";
 		return;
 	}
-	SDL_LockSurface(mRT.back_buffer);
+
+	SDL_LockSurface(pbb->m_pSurface);
 
 }
 
 void Arti3DDevice::End()
 {
-	SDL_UnlockSurface(mRT.back_buffer);
-}
+	Arti3DSurface *pbb = m_pRenderTarget ? m_pRenderTarget->m_pBackbuffer : nullptr;
 
-void Arti3DDevice::SetRenderTarget(const RenderTarget &rRT)
-{
-	mRT = rRT;
+	if (!pbb)
+	{
+		std::cerr << "ToyRender::End(): No Backbuffer!\n";
+		return;
+	}
+
+	SDL_UnlockSurface(pbb->m_pSurface);
 }
 
 void Arti3DDevice::SetRenderTarget(Arti3DRenderTarget *pRenderTarget)
@@ -507,8 +536,13 @@ void Arti3DDevice::PostProcessV(Arti3DVSOutput *v)
 	v->p.w = invW;
 
 	// Transform to screen space.
-	v->p.x = (v->p.x + 1.0f) * 0.5f * mRT.back_buffer->w;
-	v->p.y = mRT.back_buffer->h - (v->p.y + 1.0f)*0.5f *mRT.back_buffer->h;
+
+	Arti3DSurface *pbb = m_pRenderTarget->m_pBackbuffer;
+	int w = pbb->iGetWidth();
+	int h = pbb->iGetHeight();
+
+	v->p.x = (v->p.x + 1.0f) * 0.5f * w;
+	v->p.y = h - (v->p.y + 1.0f)*0.5f * h;
 
 	for (int j = 0; j < g_ciMaxVaryingNum; ++j)
 	{
@@ -609,8 +643,14 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 	int cyMin = ((ymin + 0xF) >> 4) &(~(blockSize - 1));
 	int cyMax = (((ymax + 0xF) >> 4) + blockSize) &(~(blockSize - 1));
 
-	cxMax = cxMax > mRT.back_buffer->w ? mRT.back_buffer->w : cxMax;
-	cyMax = cyMax > mRT.back_buffer->h ? mRT.back_buffer->h : cyMax;
+	Arti3DSurface *pbb = m_pRenderTarget->m_pBackbuffer;
+	int w = pbb->iGetWidth();
+	int h = pbb->iGetHeight();
+
+	Arti3DSurface *pzb = m_pRenderTarget->m_pZBuffer;
+
+	cxMax = cxMax > w ? w : cxMax;
+	cyMax = cyMax > h ? h : cyMax;
 	
 
 	int E1 = DY21 * (cxMin << 4) - DX21 * (cyMin << 4) + C1;
@@ -644,8 +684,8 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 			if (a1 == 0 || a2 == 0 || a3 == 0)
 				continue;
 
-			float *depthBuffer = mRT.z_buffer ? (float*)mRT.z_buffer->pixels + y * mRT.z_buffer->w + x : nullptr;
-			uint32_t *colorBuffer = (uint32_t*)mRT.back_buffer->pixels + y * mRT.back_buffer->w + x;
+			float *depthBuffer = pzb ? (float*)pzb->pGetPixelsDataPtr() + y * pzb->iGetWidth() + x : nullptr;
+			uint32_t *colorBuffer = (uint32_t*)pbb->pGetPixelsDataPtr()+ y * pbb->iGetWidth() + x;
 			
 			// Totally Inside, Handle blockSize * blockSize PIxels
 			if (a1 == 0xF && a2 == 0xF && a3 == 0xF)
@@ -733,8 +773,8 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 
 					IncVaryingsAlongY(W0, W1, WDY, V0, V1, VDY);
 
-					colorBuffer += mRT.back_buffer->w;
-					depthBuffer += mRT.z_buffer->w;
+					colorBuffer += pbb->iGetWidth();
+					depthBuffer += pzb->iGetWidth();
 				}
 				continue;
 			}
@@ -864,8 +904,8 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 
 				IncVaryingsAlongY(W0, W1, WDY, V0, V1, VDY);
 				
-				colorBuffer += mRT.back_buffer->w;
-				depthBuffer += mRT.z_buffer->w;
+				colorBuffer += pbb->iGetWidth();
+				depthBuffer += pzb->iGetWidth();
 				
 				EB1 = _mm_sub_epi32(EB1, _mm_set1_epi32(DDX21));
 				EB2 = _mm_sub_epi32(EB2, _mm_set1_epi32(DDX32));
@@ -1283,11 +1323,14 @@ void Arti3DDevice::RenderTileFragments(Arti3DFragment *frag)
 	
 	float *depthBuffer = nullptr;
 	uint32_t *colorBuffer = nullptr;
+
+	Arti3DSurface *pbb = m_pRenderTarget->m_pBackbuffer;
+	Arti3DSurface *pzb = m_pRenderTarget->m_pZBuffer;
 	
 	for (int x = frag->x; x < frag->x + g_ciTileSize; x += g_ciBlockSize)
 	{
-		colorBuffer = (uint32_t*)mRT.back_buffer->pixels	+ frag->y * mRT.back_buffer->w + x;
-		depthBuffer = (float*)mRT.z_buffer->pixels			+ frag->y * mRT.z_buffer->w + x;
+		colorBuffer = (uint32_t*)pbb->pGetPixelsDataPtr()	+ frag->y * pbb->iGetWidth()+ x;
+		depthBuffer = (float*)pbb->pGetPixelsDataPtr()		+ frag->y * pzb->iGetWidth()+ x;
 		
 		for (int y = frag->y; y < frag->y + g_ciTileSize; ++y)
 		{
@@ -1345,8 +1388,8 @@ void Arti3DDevice::RenderTileFragments(Arti3DFragment *frag)
 				_mm_storeu_si128((__m128i*)colorTileLine, nquad);
 			}
 
-			colorBuffer += mRT.back_buffer->w;
-			depthBuffer += mRT.z_buffer->w;
+			colorBuffer += pbb->iGetWidth();
+			depthBuffer += pzb->iGetWidth();
 
 			IncVaryingsAlongY(W0, W1, WDY, V0, V1, VDY);
 		}
@@ -1362,8 +1405,11 @@ void Arti3DDevice::RenderBlockFragments(Arti3DFragment *frag)
 
 	Arti3DTransformedFace *f = &faceBuffer[frag->faceID];
 
-	float *depthBuffer = (float*)mRT.z_buffer->pixels + mRT.z_buffer->w * frag->y + frag->x;
-	uint32_t *colorBuffer = (uint32_t *)mRT.back_buffer->pixels + mRT.back_buffer->w * frag->y + frag->x;
+	Arti3DSurface *pbb = m_pRenderTarget->m_pBackbuffer;
+	Arti3DSurface *pzb = m_pRenderTarget->m_pZBuffer;
+
+	float *depthBuffer = (float*)pzb->pGetPixelsDataPtr()+ pzb->iGetWidth() * frag->y + frag->x;
+	uint32_t *colorBuffer = (uint32_t *)pbb->pGetPixelsDataPtr() + pbb->iGetWidth() * frag->y + frag->x;
 
 	for (int y = frag->y; y < frag->y + g_ciBlockSize; ++y)
 	{
@@ -1421,8 +1467,8 @@ void Arti3DDevice::RenderBlockFragments(Arti3DFragment *frag)
 			_mm_storeu_si128((__m128i*)colorTileLine, nquad);
 		}
 
-		colorBuffer += mRT.back_buffer->w;
-		depthBuffer += mRT.z_buffer->w;
+		colorBuffer += pbb->iGetWidth();
+		depthBuffer += pzb->iGetWidth();
 
 		IncVaryingsAlongY(W0, W1, WDY, V0, V1, VDY);
 	}
@@ -1437,8 +1483,10 @@ void Arti3DDevice::PreInterpolateVaryings(__m128 &W, __m128 *iV, SSE_Float *oV)
 
 void Arti3DDevice::DrawTileGrid()
 {
-	int iWidth = mRT.back_buffer->w;
-	int iHeight = mRT.back_buffer->h;
+	Arti3DSurface *pbb = m_pRenderTarget->m_pBackbuffer;
+
+	int iWidth = pbb->iGetWidth();
+	int iHeight = pbb->iGetHeight();
 
 	uint32_t gridColor = CvrtToUint32(a3d::vec4(1.0f,1.0f,1.0f,1.0f));
 
@@ -1460,8 +1508,12 @@ void Arti3DDevice::RenderMaskedFragments(Arti3DFragment *frag)
 
 	Arti3DTransformedFace *f = &faceBuffer[frag->faceID];
 
-	float *depthBuffer = (float*)mRT.z_buffer->pixels + mRT.z_buffer->w * frag->y + frag->x;
-	uint32_t *colorBuffer = (uint32_t *)mRT.back_buffer->pixels + mRT.back_buffer->w * frag->y + frag->x;
+	Arti3DSurface *pbb = m_pRenderTarget->m_pBackbuffer;
+	Arti3DSurface *pzb = m_pRenderTarget->m_pZBuffer;
+	
+
+	float *depthBuffer = (float*)pzb->pGetPixelsDataPtr() + pzb->iGetWidth() * frag->y + frag->x;
+	uint32_t *colorBuffer = (uint32_t *)pbb->pGetPixelsDataPtr() + pbb->iGetWidth() * frag->y + frag->x;
 
 	CalcVaryings(f, frag->x, frag->y, W0, W1, WDY, V0, V1, VDY);
 

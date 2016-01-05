@@ -20,10 +20,6 @@ protected:
 
 
 public:
-	static void HandleEvent(const SDL_Event& event,Arti3DWindow *pWnd);
-	static void HandleKeyEvent(const SDL_Event& event,Arti3DWindow* pWnd);
-
-	void Run();
 
 	void UpdateSurface();
 

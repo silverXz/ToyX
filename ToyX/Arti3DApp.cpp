@@ -7,24 +7,69 @@
 #include "Arti3D_VertexLayout.h"
 #include "Arti3D_VertexBuffer.h"
 #include "Arti3D_IndexBuffer.h"
+#include "Clock.h"
 
 
 Arti3DApp::Arti3DApp() : m_pDevice(nullptr)
 , m_pWindow(nullptr)
-, m_bRunning(false)
+, m_bRunning(true)
 {
 
 }
 
 Arti3DApp::~Arti3DApp()
 {
+	if (m_pWindow)
+		delete m_pWindow;
+	if (m_pDevice)
+		delete m_pDevice;
 }
 
 void Arti3DApp::Run()
 {
+	while (m_bRunning)
+	{
+		SDL_Event event;
+		while (SDL_PollEvent(&event))
+			HandleEvent(event, this);
+
+		RenderScene();
+		CalculateFPS();
+
+		m_pWindow->UpdateSurface();
+	}
 }
 
-Arti3DResult Arti3DApp::CreateWindow(Arti3DWindow** o_pWindow,const char *pTitle, int x, int y, int width, int height, int flag)
+void Arti3DApp::RenderScene()
+{
+	if (!m_pDevice)
+		return;
+	
+	const float rotSpeed = a3d::PI / 20.0f;
+
+	static float rotAngle = 0.0f;
+	static double tLast = iv::Clock::GetCurrentTimeMS();
+
+
+	double curTime = iv::Clock::GetCurrentTimeMS();
+
+	double dt = (curTime - tLast) * 0.001;
+	rotAngle += rotSpeed * static_cast<float>(dt);
+	if (rotAngle > a3d::TWOPI)
+		rotAngle -= a3d::TWOPI;
+
+	m_pDevice->SetMatrix(TOY_MATRIX_MODEL, a3d::rotate(rotAngle, a3d::vec3(0.0f, 1.0f, 0.0f)));
+
+	tLast = curTime;
+
+	m_pDevice->Begin();
+	m_pDevice->ClearColorBuffer(a3d::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+	m_pDevice->ClearDepthBuffer();
+	m_pDevice->DrawMesh_MT();
+	m_pDevice->End();
+}
+
+Arti3DResult Arti3DApp::CreateArti3DWindow(Arti3DWindow** o_pWindow, const char *pTitle, int x, int y, int width, int height, int flag)
 {
 	if (!o_pWindow)
 		return ARTI3D_INVALID_PARAMETER;
@@ -37,7 +82,7 @@ Arti3DResult Arti3DApp::CreateWindow(Arti3DWindow** o_pWindow,const char *pTitle
 	return ARTI3D_OK;
 }
 
-Arti3DResult Arti3DApp::CreateDevice(Arti3DDevice **o_pDevice, Arti3DDeviceParameter *pA3DDeviceParameters)
+Arti3DResult Arti3DApp::CreateAndInitializeDevice(Arti3DDevice **o_pDevice, Arti3DDeviceParameter *pA3DDeviceParameters)
 {
 	if (!o_pDevice)
 		return ARTI3D_INVALID_PARAMETER;
@@ -58,18 +103,12 @@ Arti3DResult Arti3DApp::CreateDevice(Arti3DDevice **o_pDevice, Arti3DDeviceParam
 	m_pDevice->CreateSurfaceFromWindow(&pBackbuffer, m_pWindow);
 
 	Arti3DSurface *pZBuffer = nullptr;
-	m_pDevice->CreateRGBSurface(&pBackbuffer, m_pWindow->m_iWidth, m_pWindow->m_iHeight, 32, 0, 0, 0, 0);
+	m_pDevice->CreateRGBSurface(&pZBuffer, m_pWindow->m_iWidth, m_pWindow->m_iHeight, 32, 0, 0, 0, 0);
 
 	pRenderTarget->SetBackBuffer(pBackbuffer);
 	pRenderTarget->SetZBuffer(pZBuffer);
 
 	m_pDevice->SetRenderTarget(pRenderTarget);
-
-	m_pDevice->SetMatrix(TOY_MATRIX_VIEW, a3d::lookAt(a3d::vec3(4.0f, 4.0f, 4.0f), a3d::vec3(0.0f, 0.0f, 0.0f), a3d::vec3(0.0f, 1.0f, 0.0f)));
-	m_pDevice->SetMatrix(TOY_MATRIX_PROJECTION, a3d::perspective(90.0f, (float)m_pWindow->m_iWidth / m_pWindow->m_iHeight, 0.1f, 15.0f));
-	m_pDevice->SetViewport(0, 0, m_pWindow->m_iWidth, m_pWindow->m_iHeight);
-	m_pDevice->SetVertexShader(NewCubeVS);
-	m_pDevice->SetPixelShader(NewCubeFS);
 
 	// Load Obj.
 	SetupScene();
@@ -79,6 +118,33 @@ Arti3DResult Arti3DApp::CreateDevice(Arti3DDevice **o_pDevice, Arti3DDeviceParam
 	return ARTI3D_OK;
 	
 
+}
+
+void Arti3DApp::HandleEvent(const SDL_Event& event, Arti3DApp *pApp)
+{
+	switch (event.type)
+	{
+	case SDL_QUIT:
+		pApp->m_bRunning = false;
+		break;
+	case SDL_KEYDOWN:
+		HandleKeyEvent(event, pApp);
+		break;
+	default:
+		break;
+	}
+}
+
+void Arti3DApp::HandleKeyEvent(const SDL_Event& event, Arti3DApp* pApp)
+{
+	switch (event.key.keysym.sym)
+	{
+	case SDLK_ESCAPE:
+		pApp->m_bRunning = false;
+		break;
+	default:
+		break;
+	}
 }
 
 void Arti3DApp::SetupScene()
@@ -130,4 +196,26 @@ void Arti3DApp::SetupScene()
 	memcpy(pDest, xid, sizeof(xid));
 
 	m_pDevice->SetIndexBuffer(pIndexBuffer);
+
+	m_pDevice->SetMatrix(TOY_MATRIX_VIEW, a3d::lookAt(a3d::vec3(4.0f, 4.0f, 4.0f), a3d::vec3(0.0f, 0.0f, 0.0f), a3d::vec3(0.0f, 1.0f, 0.0f)));
+	m_pDevice->SetMatrix(TOY_MATRIX_PROJECTION, a3d::perspective(90.0f, (float)m_pWindow->m_iWidth / m_pWindow->m_iHeight, 0.1f, 15.0f));
+	m_pDevice->SetViewport(0, 0, m_pWindow->m_iWidth, m_pWindow->m_iHeight);
+	m_pDevice->SetVertexShader(NewCubeVS);
+	m_pDevice->SetPixelShader(NewCubeFS);
+}
+
+void Arti3DApp::CalculateFPS()
+{
+	static double tLast = iv::Clock::GetCurrentTimeMS();
+	static int iFrames = 0;
+	 
+	double tNow = iv::Clock::GetCurrentTimeMS();
+	if (tNow - tLast >= 1000.0)
+	{
+		std::cout << "FPS:" << iFrames << std::endl;
+		iFrames = 0;
+		tLast = tNow;
+	}
+	else
+		++iFrames;
 }

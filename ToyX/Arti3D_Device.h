@@ -9,6 +9,7 @@
 #include "Shader.h"
 #include "Arti3D_Types.h"
 #include "Arti3D_ForwardDecl.h"
+#include "Arti3D_RenderTarget.h"
 
 
 class Arti3DDevice
@@ -19,8 +20,6 @@ class Arti3DDevice
 public:
 	Arti3DDevice();
 	~Arti3DDevice();
-
-	void SetRenderTarget(const RenderTarget& rRT);
 
 	Arti3DResult InitializeDevice(Arti3DDeviceParameter deviceParam);
 
@@ -37,13 +36,8 @@ public:
 	
 	void Draw3DLines(const a3d::vec4& p1, const a3d::vec4 p2, uint32_t color);
 
-	inline void SetPixelColor(int x, int y, uint32_t c)
-	{
-		assert(x >= 0 && y >= 0);
-		if (x >= mRT.back_buffer->w || y >= mRT.back_buffer->h)
-			return;
-		((uint32_t*)mRT.back_buffer->pixels)[y * mRT.back_buffer->w + x] = c;
-	}
+	inline void SetPixelColor(int x, int y, uint32_t c);
+
 
 	// Get pixel format based on channel masks
 	// @param bpp : bits per pixel.
@@ -256,8 +250,6 @@ private:
 	std::ofstream		dFile;
 
 	Arti3DRenderTarget			*m_pRenderTarget;
-
-	RenderTarget		mRT;
 
 	// Render State
 	RenderContext	mRC;

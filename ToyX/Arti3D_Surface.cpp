@@ -38,7 +38,28 @@ Arti3DResult Arti3DSurface::Create(Arti3DWindow *pWindow)
 	if (!pWindow)
 		return ARTI3D_INVALID_PARAMETER;
 	m_pSurface = SDL_GetWindowSurface(pWindow->m_pWindow);
+	
 	if (!m_pSurface)
 		return ARTI3D_INVALID_PARAMETER;
+	
+	m_iWidth = m_pSurface->w;
+	m_iHeight = m_pSurface->h;
+	m_fmtFormat = ARTI3D_FORMAT_RGBA8888;
+	
 	return ARTI3D_OK;
+}
+
+void* Arti3DSurface::pGetPixelsDataPtr()
+{
+	return m_pSurface->pixels;
+}
+
+int Arti3DSurface::iGetWidth() 
+{
+	return m_iWidth;
+}
+
+int Arti3DSurface::iGetHeight() 
+{
+	return m_iHeight;
 }

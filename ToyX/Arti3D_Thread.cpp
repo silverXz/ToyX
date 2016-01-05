@@ -8,6 +8,8 @@
 #include "Arti3D_IndexBuffer.h"
 #include "Arti3D_VertexBuffer.h"
 #include "Arti3D_VertexLayout.h"
+#include "Arti3D_RenderTarget.h"
+#include "Arti3D_Surface.h"
 #include "Arti3D_Tile.h"
 
 
@@ -321,8 +323,12 @@ void Arti3DThread::PostProcessVertex(Arti3DVSOutput *io_pVSOutput)
 		io_pVSOutput->varyings[j] *= invW;
 	
 	// Transform to screen space.
-	io_pVSOutput->p.x = (io_pVSOutput->p.x + 1.0f) * 0.5f * m_pParent->mRT.back_buffer->w;
-	io_pVSOutput->p.y = m_pParent->mRT.back_buffer->h - (io_pVSOutput->p.y + 1.0f)*0.5f * m_pParent->mRT.back_buffer->h;
+	Arti3DSurface *pbb = m_pParent->m_pRenderTarget->m_pBackbuffer;
+	int w = pbb->iGetWidth();
+	int h = pbb->iGetHeight();
+
+	io_pVSOutput->p.x = (io_pVSOutput->p.x + 1.0f) * 0.5f * w;
+	io_pVSOutput->p.y = h - (io_pVSOutput->p.y + 1.0f)* 0.5f * h;
 
 
 }
@@ -701,7 +707,14 @@ void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
 	Arti3DThread *pThread = &m_pParent->m_pThreads[i_pFrag->threadID];
 	Arti3DTransformedFace *f = &pThread->m_pTransformedFace[i_pFrag->faceID];
 
-	RenderTarget &rRT = m_pParent->mRT;
+	Arti3DSurface *pbb = m_pParent->m_pRenderTarget->m_pBackbuffer;
+	void *pixels = pbb->pGetPixelsDataPtr();
+	int wp = pbb->iGetWidth();
+
+	Arti3DSurface *pzb = m_pParent->m_pRenderTarget->m_pZBuffer;
+	void *depths = pzb->pGetPixelsDataPtr();
+	int wz = pzb->iGetWidth();
+
 	RenderContext &rRC = m_pParent->mRC;
 	
 	float *depthBuffer = nullptr;
@@ -709,8 +722,8 @@ void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
 
 	for (int x = i_pFrag->x; x < i_pFrag->x + g_ciTileSize; x += g_ciBlockSize)
 	{
-		colorBuffer = (uint32_t*)rRT.back_buffer->pixels + i_pFrag->y * rRT.back_buffer->w + x;
-		depthBuffer = (float*)rRT.z_buffer->pixels + i_pFrag->y * rRT.z_buffer->w + x;
+		colorBuffer = (uint32_t*)pixels + i_pFrag->y * wp + x;
+		depthBuffer = (float*)depths + i_pFrag->y * wz + x;
 
 		for (int y = i_pFrag->y; y < i_pFrag->y + g_ciTileSize; ++y)
 		{
@@ -768,8 +781,8 @@ void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
 				_mm_storeu_si128((__m128i*)colorTileLine, nquad);
 			}
 
-			colorBuffer += rRT.back_buffer->w;
-			depthBuffer += rRT.z_buffer->w;
+			colorBuffer += wp;
+			depthBuffer += wz;
 
 			IncVaryingsAlongY(W0, W1, WDY, V0, V1, VDY);
 		}
@@ -787,11 +800,18 @@ void Arti3DThread::RenderBlockFragments(Arti3DFragment *i_pFrag)
 	Arti3DThread *pThread = &m_pParent->m_pThreads[i_pFrag->threadID];
 	Arti3DTransformedFace *f = &pThread->m_pTransformedFace[i_pFrag->faceID];
 
-	RenderTarget &rRT = m_pParent->mRT;
+	Arti3DSurface *pbb = m_pParent->m_pRenderTarget->m_pBackbuffer;
+	void *pixels = pbb->pGetPixelsDataPtr();
+	int wp = pbb->iGetWidth();
+
+	Arti3DSurface *pzb = m_pParent->m_pRenderTarget->m_pZBuffer;
+	void *depths = pzb->pGetPixelsDataPtr();
+	int wz = pzb->iGetWidth();
+
 	RenderContext &rRC = m_pParent->mRC;
 	
-	float *depthBuffer = (float*)rRT.z_buffer->pixels + rRT.z_buffer->w * i_pFrag->y + i_pFrag->x;
-	uint32_t *colorBuffer = (uint32_t *)rRT.back_buffer->pixels + rRT.back_buffer->w * i_pFrag->y + i_pFrag->x;
+	float *depthBuffer = (float*)depths + wz * i_pFrag->y + i_pFrag->x;
+	uint32_t *colorBuffer = (uint32_t *)pixels + wp * i_pFrag->y + i_pFrag->x;
 
 	for (int y = i_pFrag->y; y < i_pFrag->y + g_ciBlockSize; ++y)
 	{
@@ -849,8 +869,8 @@ void Arti3DThread::RenderBlockFragments(Arti3DFragment *i_pFrag)
 			_mm_storeu_si128((__m128i*)colorTileLine, nquad);
 		}
 
-		colorBuffer += rRT.back_buffer->w;
-		depthBuffer += rRT.z_buffer->w;
+		colorBuffer += wp;
+		depthBuffer += wz;
 
 		IncVaryingsAlongY(W0, W1, WDY, V0, V1, VDY);
 	}
@@ -867,11 +887,18 @@ void Arti3DThread::RenderMaskedFragments(Arti3DFragment *i_pFrag)
 	Arti3DThread *pThread = &m_pParent->m_pThreads[i_pFrag->threadID];
 	Arti3DTransformedFace *f = &pThread->m_pTransformedFace[i_pFrag->faceID];
 
-	RenderTarget &rRT = m_pParent->mRT;
+	Arti3DSurface *pbb = m_pParent->m_pRenderTarget->m_pBackbuffer;
+	void *pixels = pbb->pGetPixelsDataPtr();
+	int wp = pbb->iGetWidth();
+
+	Arti3DSurface *pzb = m_pParent->m_pRenderTarget->m_pZBuffer;
+	void *depths = pzb->pGetPixelsDataPtr();
+	int wz = pzb->iGetWidth();
+
 	RenderContext &rRC = m_pParent->mRC;
 
-	float *depthBuffer = (float*)rRT.z_buffer->pixels + rRT.z_buffer->w * i_pFrag->y + i_pFrag->x;
-	uint32_t *colorBuffer = (uint32_t *)rRT.back_buffer->pixels + rRT.back_buffer->w * i_pFrag->y + i_pFrag->x;
+	float *depthBuffer = (float*)depths + wz * i_pFrag->y + i_pFrag->x;
+	uint32_t *colorBuffer = (uint32_t *)pixels + wp * i_pFrag->y + i_pFrag->x;
 
 	CalcVaryings(f, i_pFrag->x, i_pFrag->y, W0, W1, WDY, V0, V1, VDY);
 
