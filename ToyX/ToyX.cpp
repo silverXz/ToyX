@@ -153,6 +153,8 @@ Arti3DResult CreateAndInitializeDevice(Arti3DDevice **io_pArti3DDev,Arti3DDevice
 
 	(*io_pArti3DDev)->InitializeDevice(*pA3DDeviceParameters);
 
+	Arti3DWindow *pWindow = nullptr;
+
 	Arti3DRenderTarget* pRenderTarget = nullptr;
 	(*io_pArti3DDev)->CreateRenderTarget(&pRenderTarget);
 
@@ -203,11 +205,11 @@ void DestroyDevice(Arti3DDevice **io_pArti3DDev)
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-	if (SDL_Init(SDL_INIT_VIDEO) != 0)
-	{
-		fprintf_s(stderr, "SDL_Init Failed!\n");
-		return 1;
-	}
+// 	if (SDL_Init(SDL_INIT_VIDEO) != 0)
+// 	{
+// 		fprintf_s(stderr, "SDL_Init Failed!\n");
+// 		return 1;
+// 	}
 
 	g_Window = SDL_CreateWindow("ToyX", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
 

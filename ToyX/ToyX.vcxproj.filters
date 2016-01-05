@@ -28,6 +28,15 @@
     <Filter Include="Arti3D_Core\Source">
       <UniqueIdentifier>{278b56d3-e652-4b9b-9d2c-8d5d001ab194}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Arti3D">
+      <UniqueIdentifier>{7fcf5069-5730-491d-a3c2-49a3d8d7a8bc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Arti3D\Source">
+      <UniqueIdentifier>{57c05d2e-24d3-4fd7-b76d-e0a52ef5742f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Arti3D\Header">
+      <UniqueIdentifier>{150ec215-46cc-4105-8480-01af2badb5f9}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Text Include="..\..\..\..\SilverX%27s Space\VS2013 Projects\ToyX\ToyX\ReadMe.txt" />
@@ -87,6 +96,9 @@
     <ClInclude Include="Arti3D_Window.h">
       <Filter>Arti3D_Core\Header</Filter>
     </ClInclude>
+    <ClInclude Include="Arti3DApp.h">
+      <Filter>Arti3D\Header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -127,6 +139,9 @@
     </ClCompile>
     <ClCompile Include="Arti3D_Window.cpp">
       <Filter>Arti3D_Core\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Arti3DApp.cpp">
+      <Filter>Arti3D\Source</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

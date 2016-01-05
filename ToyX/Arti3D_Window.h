@@ -9,10 +9,10 @@ union SDL_Event;
 class Arti3DWindow
 {
 protected:
-	friend class Arti3DDevice;
 	friend class Arti3DSurface;
+	friend class Arti3DApp;
 
-	Arti3DWindow(Arti3DDevice* pParent);
+	Arti3DWindow();
 	~Arti3DWindow();
 
 
@@ -25,12 +25,16 @@ public:
 
 	void Run();
 
+	void UpdateSurface();
+
 private:
-	Arti3DDevice	*m_pParent;
 
 	SDL_Window		*m_pWindow;
-
+	int				m_iWidth;
+	int				m_iHeight;
 	bool			m_bRunning;
+
+
 };
 
 

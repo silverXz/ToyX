@@ -14,8 +14,7 @@
 class Arti3DDevice
 {
 	friend class Arti3DThread;
-
-
+	friend class Arti3DApp;
 
 public:
 	Arti3DDevice();

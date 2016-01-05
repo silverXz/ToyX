@@ -5,8 +5,7 @@
 
 #include <SDL/SDL.h>
 
-Arti3DWindow::Arti3DWindow(Arti3DDevice* pParent) : m_pParent(pParent)
-, m_pWindow(nullptr)
+Arti3DWindow::Arti3DWindow():m_pWindow(nullptr)
 , m_bRunning(false)
 {
 
@@ -21,6 +20,10 @@ Arti3DWindow::~Arti3DWindow()
 Arti3DResult Arti3DWindow::Create(const char *pTitle, int x, int y, int width, int height, uint32_t flag)
 {
 	m_pWindow = SDL_CreateWindow(pTitle, x, y, width, height, flag);
+
+	m_iWidth = width;
+	m_iHeight = height;
+
 	if (m_pWindow)
 		return ARTI3D_OK;
 	return ARTI3D_INVALID_PARAMETER;
@@ -68,7 +71,7 @@ void Arti3DWindow::Run()
 	{
 		SDL_Event event;
 		while (SDL_PollEvent(&event))
-			HandleEvent(event,this);
+			HandleEvent(event, this);
 		double curTime = iv::Clock::GetCurrentTimeMS();
 
 		past += curTime - last;
@@ -77,25 +80,11 @@ void Arti3DWindow::Run()
 		if (rotAngle > a3d::TWOPI)
 			rotAngle -= a3d::TWOPI;
 
-		m_pParent->SetMatrix(TOY_MATRIX_MODEL, a3d::rotate(rotAngle, a3d::vec3(0.0f, 1.0f, 0.0f)));
-
-		last = curTime;
-
-		if (past >= 1000.0)
-		{
-			std::cout << "FPS:" << nFrame << std::endl;
-			nFrame = 0;
-			past = 0.0;
-		}
-		else
-			++nFrame;
-
-		m_pParent->Begin();
-		m_pParent->ClearColorBuffer(a3d::vec4(0.0f, 0.0f, 0.0f, 1.0f));
-		m_pParent->ClearDepthBuffer();
-		m_pParent->DrawMesh_MT();
-		m_pParent->End();
-
 		SDL_UpdateWindowSurface(m_pWindow);
 	}
+}
+
+void Arti3DWindow::UpdateSurface()
+{
+	SDL_UpdateWindowSurface(m_pWindow);
 }

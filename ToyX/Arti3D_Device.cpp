@@ -8,6 +8,7 @@
 
 #include <SDL/SDL.h>
 
+#include "Arti3DApp.h"
 #include "Arti3D_RenderTarget.h"
 #include "Arti3D_VertexLayout.h"
 #include "Arti3D_VertexBuffer.h"

@@ -85,6 +85,7 @@
     <Text Include="..\..\..\..\SilverX%27s Space\VS2013 Projects\ToyX\ToyX\ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Arti3DApp.h" />
     <ClInclude Include="Arti3D_ForwardDecl.h" />
     <ClInclude Include="Arti3D_IndexBuffer.h" />
     <ClInclude Include="Arti3D_RenderTarget.h" />
@@ -105,6 +106,7 @@
     <ClInclude Include="Arti3D_Types.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Arti3DApp.cpp" />
     <ClCompile Include="Arti3D_IndexBuffer.cpp" />
     <ClCompile Include="Arti3D_RenderTarget.cpp" />
     <ClCompile Include="Arti3D_Surface.cpp" />
