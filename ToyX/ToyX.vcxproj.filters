@@ -84,6 +84,9 @@
     <ClInclude Include="Arti3D_Math.h">
       <Filter>ToyMath</Filter>
     </ClInclude>
+    <ClInclude Include="Arti3D_Window.h">
+      <Filter>Arti3D_Core\Header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -114,6 +117,15 @@
       <Filter>Arti3D_Core\Source</Filter>
     </ClCompile>
     <ClCompile Include="Arti3D_Thread.cpp">
+      <Filter>Arti3D_Core\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Arti3D_RenderTarget.cpp">
+      <Filter>Arti3D_Core\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Arti3D_Surface.cpp">
+      <Filter>Arti3D_Core\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Arti3D_Window.cpp">
       <Filter>Arti3D_Core\Source</Filter>
     </ClCompile>
   </ItemGroup>

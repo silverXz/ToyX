@@ -26,8 +26,7 @@ public:
 	Arti3DResult InitializeDevice(Arti3DDeviceParameter deviceParam);
 
 	Arti3DResult PreRender();
-
-
+	
 	void Begin();
 
 	void End();
@@ -36,8 +35,7 @@ public:
 
 	// Bresenham algorithm
 	void Draw2DLines(int x1, int y1, int x2, int y2, uint32_t color);
-
-
+	
 	void Draw3DLines(const a3d::vec4& p1, const a3d::vec4 p2, uint32_t color);
 
 	inline void SetPixelColor(int x, int y, uint32_t c)
@@ -48,6 +46,13 @@ public:
 		((uint32_t*)mRT.back_buffer->pixels)[y * mRT.back_buffer->w + x] = c;
 	}
 
+	// Get pixel format based on channel masks
+	// @param bpp : bits per pixel.
+	// @param Rmask : red channel mask.
+	// @param Gmask : green channel mask.
+	// @param Bmask : blue channel mask.
+	// @param Amask : alpha channel mask.
+	Arti3DFormat MasksToPixelsFormatEnum(int bpp, uint32_t Rmask, uint32_t Gmask, uint32_t Bmask, uint32_t Amask);
 
 	// Create g_ciMaxThreadNum Threads And Execute The Thread Function "WorkFunc".
 	Arti3DResult CreateWorkerThreads();
@@ -55,6 +60,27 @@ public:
 	// Distribute Work For Every Threads.
 	// This Function Must Be Called After The Scene Is Loaded And The Index Buffer Is Properly Setup.
 	Arti3DResult InitializeWorkThreads();
+
+	// Create Render Target
+	Arti3DResult CreateRenderTarget(Arti3DRenderTarget **o_pRenderTarget);
+
+	void SetRenderTarget(Arti3DRenderTarget *pRenderTarget);
+
+
+	// Create RGB Surface For Texture/Depth
+	// @param o_pSurface : pointer to pointer to Arti3DSurface.
+	// @param width	: width of surface.
+	// @param height : height of surface.
+	// @param bpp : bits per pixel.
+	// @param rmask : red channel mask.
+	// @param gmask : green channel mask.
+	// @param bmask : blue channel mask.
+	// @param amask : alpha channel mask.
+	Arti3DResult CreateRGBSurface(Arti3DSurface **o_pSurface,uint32_t width,uint32_t height,uint32_t bpp, uint32_t rmask, uint32_t gmask, uint32_t bmask, uint32_t amask);
+
+	// Create Surface Associated With Some Windows For Backbuffer.
+	// @param pWindow : pointer to the window that the surface associated with.
+	Arti3DResult CreateSurfaceFromWindow(Arti3DSurface **o_pSurface,Arti3DWindow *pWindow);
 
 	// Create A VertexLayout Instance To Specify The Attibute Data Layout Of A Vertex.
 	// @param o_pVertexLayout : Pointer To The Target Arti3DVertexLayout Pointer.
@@ -229,6 +255,8 @@ private:
 	int							m_iTileY;
 
 	std::ofstream		dFile;
+
+	Arti3DRenderTarget			*m_pRenderTarget;
 
 	RenderTarget		mRT;
 

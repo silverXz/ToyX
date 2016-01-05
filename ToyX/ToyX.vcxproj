@@ -41,9 +41,13 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
+    <IncludePath>$(SolutionDir)Include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)Lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <IncludePath>$(SolutionDir)Include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)Lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -89,6 +93,7 @@
     <ClInclude Include="Arti3D_Tile.h" />
     <ClInclude Include="Arti3D_VertexBuffer.h" />
     <ClInclude Include="Arti3D_VertexLayout.h" />
+    <ClInclude Include="Arti3D_Window.h" />
     <ClInclude Include="Clock.h" />
     <ClInclude Include="Helper.h" />
     <ClInclude Include="Shader.h" />
@@ -101,10 +106,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Arti3D_IndexBuffer.cpp" />
+    <ClCompile Include="Arti3D_RenderTarget.cpp" />
+    <ClCompile Include="Arti3D_Surface.cpp" />
     <ClCompile Include="Arti3D_Thread.cpp" />
     <ClCompile Include="Arti3D_Tile.cpp" />
     <ClCompile Include="Arti3D_VertexBuffer.cpp" />
     <ClCompile Include="Arti3D_VertexLayout.cpp" />
+    <ClCompile Include="Arti3D_Window.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="SSE_Math.cpp" />
     <ClCompile Include="stdafx.cpp">

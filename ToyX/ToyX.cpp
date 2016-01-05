@@ -87,6 +87,60 @@ static void HandleEvent(const SDL_Event &event)
 	}
 }
 
+void LoadCubeData(Arti3DDevice *io_pDevice)
+{
+	if (!io_pDevice)
+		return;
+
+	// Load Obj.
+	const float len = 2.0f;
+
+	Arti3DVertexLayout *pVertexLayout = nullptr;
+	Arti3DVertexAttributeFormat vaf[] = { ARTI3D_VAF_VECTOR4, ARTI3D_VAF_VECTOR4 };
+	io_pDevice->CreateVertexLayout(&pVertexLayout, 2, vaf);
+	io_pDevice->SetVertexLayout(pVertexLayout);
+
+	Arti3DVertexBuffer *pVertexBuffer = nullptr;
+
+	uint32_t iFloat = pVertexLayout->iGetFloats();
+	uint32_t iStride = iFloat * sizeof(float);
+	const uint32_t iVertex = 8;
+	io_pDevice->CreateVertexBuffer(&pVertexBuffer, iVertex * iStride);
+
+	// Upload Cube Data To VertexBuffer
+	std::vector<std::vector<float>> xv{
+		{ -len, len, len, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f },	//0
+		{ len, len, len, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f },	//1
+		{ len, len, -len, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f },	//2
+		{ -len, len, -len, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f },	//3
+		{ -len, -len, len, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f },	//4
+		{ len, -len, len, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f },	//5
+		{ len, -len, -len, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f },	//6
+		{ -len, -len, -len, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f }	//7
+	};
+
+	for (int i = 0; i < iVertex; ++i)
+	{
+		void *pDest = nullptr;
+		pVertexBuffer->GetPointer(i * iStride, &pDest);
+		memcpy(pDest, &xv[i][0], iStride);
+	}
+
+	io_pDevice->SetVertexBuffer(pVertexBuffer);
+
+	Arti3DIndexBuffer *pIndexBuffer = nullptr;
+	io_pDevice->CreateIndexBuffer(&pIndexBuffer, 36 * sizeof(uint32_t), ARTI3D_FORMAT_INDEX32);
+	uint32_t xid[] = { 0, 1, 2, 0, 2, 3, 0, 4, 5, 0, 5, 1, 1, 5, 6, 1, 6, 2, 4, 7, 6, 4, 6, 5, 0, 3, 7, 0, 7, 4, 3, 2, 6, 3, 6, 7 };
+	void *pDest = nullptr;
+	pIndexBuffer->GetPointer(0, &pDest);
+	memcpy(pDest, xid, sizeof(xid));
+
+	io_pDevice->SetIndexBuffer(pIndexBuffer);
+
+}
+
+
+
 Arti3DResult CreateAndInitializeDevice(Arti3DDevice **io_pArti3DDev,Arti3DDeviceParameter *pA3DDeviceParameters)
 {
 	if (!io_pArti3DDev)
@@ -98,6 +152,12 @@ Arti3DResult CreateAndInitializeDevice(Arti3DDevice **io_pArti3DDev,Arti3DDevice
 		return ARTI3D_OUT_OF_MEMORY;
 
 	(*io_pArti3DDev)->InitializeDevice(*pA3DDeviceParameters);
+
+	Arti3DRenderTarget* pRenderTarget = nullptr;
+	(*io_pArti3DDev)->CreateRenderTarget(&pRenderTarget);
+
+	Arti3DSurface *pBackbuffer = nullptr;
+	(*io_pArti3DDev)->CreateRGBSurface(&pBackbuffer, WINDOW_WIDTH, WINDOW_HEIGHT, 32,0, 0, 0, 0);
 
 	SDL_Surface *cb = SDL_GetWindowSurface(g_Window);
 	if (!cb)
@@ -124,55 +184,13 @@ Arti3DResult CreateAndInitializeDevice(Arti3DDevice **io_pArti3DDev,Arti3DDevice
 	(*io_pArti3DDev)->SetPixelShader(NewCubeFS);
 
 	// Load Obj.
-
-	const float len = 2.0f;
-
-	Arti3DVertexLayout *pVertexLayout = nullptr;
-	Arti3DVertexAttributeFormat vaf[] = { ARTI3D_VAF_VECTOR4, ARTI3D_VAF_VECTOR4 };
-	(*io_pArti3DDev)->CreateVertexLayout(&pVertexLayout, 2, vaf);
-	(*io_pArti3DDev)->SetVertexLayout(pVertexLayout);
-
-	Arti3DVertexBuffer *pVertexBuffer = nullptr;
-
-	uint32_t iFloat = pVertexLayout->iGetFloats();
-	uint32_t iStride = iFloat * sizeof(float);
-	const uint32_t iVertex = 8;
-	(*io_pArti3DDev)->CreateVertexBuffer(&pVertexBuffer, iVertex * iStride);
-
-	// Upload Cube Data To VertexBuffer
-	std::vector<std::vector<float>> xv{
-		{ -len, len, len, 1.0f,		1.0f, 0.0f, 0.0f, 1.0f },	//0
-		{ len, len, len, 1.0f,		0.0f, 1.0f, 0.0f, 1.0f },	//1
-		{ len, len, -len, 1.0f,		0.0f, 0.0f, 1.0f, 1.0f },	//2
-		{ -len, len, -len, 1.0f,	0.0f, 1.0f, 1.0f, 1.0f },	//3
-		{ -len, -len, len, 1.0f,	1.0f, 0.0f, 1.0f, 1.0f },	//4
-		{ len, -len, len, 1.0f,		1.0f, 1.0f, 0.0f, 1.0f },	//5
-		{ len, -len, -len, 1.0f,	1.0f, 1.0f, 1.0f, 0.0f },	//6
-		{ -len, -len, -len, 1.0f,	0.0f, 0.0f, 0.0f, 1.0f }	//7
-	};
-
-	for (int i = 0; i < iVertex; ++i)
-	{
-		void *pDest = nullptr;
-		pVertexBuffer->GetPointer(i * iStride, &pDest);
-		memcpy(pDest, &xv[i][0], iStride);
-	}
-
-	(*io_pArti3DDev)->SetVertexBuffer(pVertexBuffer);
-
-	Arti3DIndexBuffer *pIndexBuffer = nullptr;
-	(*io_pArti3DDev)->CreateIndexBuffer(&pIndexBuffer, 36 * sizeof(uint32_t), ARTI3D_INDEX32);
-	uint32_t xid[] = { 0, 1, 2, 0, 2, 3, 0, 4, 5, 0, 5, 1, 1, 5, 6, 1, 6, 2, 4, 7, 6, 4, 6, 5, 0, 3, 7, 0, 7, 4, 3, 2, 6, 3, 6, 7 };
-	void *pDest = nullptr;
-	pIndexBuffer->GetPointer(0, &pDest);
-	memcpy(pDest, xid, sizeof(xid));
-
-	(*io_pArti3DDev)->SetIndexBuffer(pIndexBuffer);
+	LoadCubeData(*io_pArti3DDev);
 
 	(*io_pArti3DDev)->InitializeWorkThreads();
 
 	return ARTI3D_OK;
 }
+
 
 void DestroyDevice(Arti3DDevice **io_pArti3DDev)
 {

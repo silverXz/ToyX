@@ -5,11 +5,16 @@
 #include <assert.h>
 #include <xmmintrin.h>
 #include <smmintrin.h>
+
+#include <SDL/SDL.h>
+
+#include "Arti3D_RenderTarget.h"
 #include "Arti3D_VertexLayout.h"
 #include "Arti3D_VertexBuffer.h"
 #include "Arti3D_IndexBuffer.h"
 #include "Arti3D_Thread.h"
 #include "Arti3D_Tile.h"
+#include "Arti3D_Surface.h"
 
 
 using namespace a3d;
@@ -19,6 +24,7 @@ Arti3DDevice::Arti3DDevice() : m_pIndexBuffer(nullptr),
 	m_pVertexLayout(nullptr),
 	m_pThreads(nullptr),
 	m_pTiles(nullptr),
+	m_pRenderTarget(nullptr),
 	m_pJobQueue(nullptr),
 	m_iJobStart(0),
 	m_iJobEnd(0),
@@ -39,12 +45,34 @@ Arti3DDevice::~Arti3DDevice()
 	SAFE_DELETE(m_pIndexBuffer);
 	SAFE_DELETE(m_pVertexBuffer);
 	SAFE_DELETE(m_pVertexLayout);
+	SAFE_DELETE(m_pRenderTarget);
 	SAFE_DELETE_ARRAY(m_pThreads);
 	SAFE_DELETE_ARRAY(m_pTiles);
 	SAFE_DELETE_ARRAY(m_pJobQueue);
+
+//	SDL_Quit();
 }
 
+Arti3DResult Arti3DDevice::InitializeDevice(Arti3DDeviceParameter deviceParam)
+{
+// 	if (SDL_Init(SDL_INIT_VIDEO) != 0)
+// 	{
+// 		fprintf_s(stderr, "SDL_Init Failed!\n");
+// 		return ARTI3D_UNKOWN;
+// 	}
 
+
+	m_iWidth = deviceParam.iWidth;
+	m_iHeight = deviceParam.iHeight;
+
+	if (deviceParam.bMultiThread)
+		CreateWorkerThreads();
+
+	InitTile();
+	CreateTilesAndJobQueue();
+
+	return ARTI3D_OK;
+}
 
 void Arti3DDevice::ClearColorBuffer(const a3d::vec4& color)
 {
@@ -189,6 +217,11 @@ void Arti3DDevice::End()
 void Arti3DDevice::SetRenderTarget(const RenderTarget &rRT)
 {
 	mRT = rRT;
+}
+
+void Arti3DDevice::SetRenderTarget(Arti3DRenderTarget *pRenderTarget)
+{
+	m_pRenderTarget = pRenderTarget;
 }
 
 
@@ -1464,18 +1497,7 @@ void Arti3DDevice::RenderMaskedFragments(Arti3DFragment *frag)
 	}
 }
 
-Arti3DResult Arti3DDevice::InitializeDevice(Arti3DDeviceParameter deviceParam)
-{
-	m_iWidth = deviceParam.iWidth;
-	m_iHeight = deviceParam.iHeight;
 
-	if (deviceParam.bMultiThread)
-		CreateWorkerThreads();
-
-	InitTile();
-	CreateTilesAndJobQueue();
-	return ARTI3D_OK;
-}
 
 void Arti3DDevice::ReleaseResource()
 {
@@ -1566,6 +1588,21 @@ Arti3DResult Arti3DDevice::CreateWorkerThreads()
 
 	return ARTI3D_OK;
 }
+
+
+Arti3DResult Arti3DDevice::CreateRenderTarget(Arti3DRenderTarget **o_pRenderTarget)
+{
+	if (!o_pRenderTarget)
+		return ARTI3D_INVALID_PARAMETER;
+
+	*o_pRenderTarget = new Arti3DRenderTarget(this);
+
+	if (!*o_pRenderTarget)
+		return ARTI3D_OUT_OF_MEMORY;
+	return ARTI3D_OK;
+}
+
+
 
 Arti3DResult Arti3DDevice::CreateVertexLayout(Arti3DVertexLayout **o_pVertexLayout, uint32_t iAttribute, Arti3DVertexAttributeFormat *i_pVAFormat)
 {
@@ -1712,5 +1749,55 @@ void Arti3DDevice::SyncronizeWorkerThreads()
 {
 	while (!(m_iStage == 1 && m_iWorkingThread == 0))
 		std::this_thread::yield();
+}
+
+Arti3DFormat Arti3DDevice::MasksToPixelsFormatEnum(int bpp, uint32_t Rmask, uint32_t Gmask, uint32_t Bmask, uint32_t Amask)
+{
+	switch (bpp)
+	{
+	case 8:
+		if (Rmask == 0)
+			return ARTI3D_FORMAT_INDEX8;
+		break;
+	case 16:
+		if (Rmask == 0)
+			return ARTI3D_FORMAT_INDEX16;
+		if (Rmask == 0xF0 && Gmask == 0x0F)
+			return ARTI3D_FORMAT_RG88;
+		break;
+	case 24:
+		if (Rmask == 0x0F00 && Gmask == 0x00F0 && Bmask == 0x000F)
+			return ARTI3D_FORMAT_RGB888;
+		break;
+	case 32:
+		if (Rmask == 0xFFFF)
+			return ARTI3D_FORMAT_R32F;
+		if (Rmask == 0xF000 && Gmask == 0x0F00 && Bmask == 0x00F0 && Amask == 0x000F)
+			return ARTI3D_FORMAT_RGBA8888;
+		if (Rmask == 0 && Gmask == 0 && Bmask == 0 && Amask == 0)
+			return ARTI3D_FORMAT_INDEX32;
+		break;
+	default:
+		break;
+	}
+	return ARTI3D_FORMAT_INVLAID;
+}
+
+Arti3DResult Arti3DDevice::CreateRGBSurface(Arti3DSurface **o_pSurface,uint32_t width,uint32_t height,uint32_t bpp, uint32_t rmask, uint32_t gmask, uint32_t bmask, uint32_t amask)
+{
+	if (!o_pSurface)
+		return ARTI3D_INVALID_PARAMETER;
+	*o_pSurface = new Arti3DSurface(this);
+	(*o_pSurface)->Create(bpp, width, height, rmask, gmask, bmask, amask);
+	return ARTI3D_OK;
+}
+
+Arti3DResult Arti3DDevice::CreateSurfaceFromWindow(Arti3DSurface **o_pSurface,Arti3DWindow *pWindow)
+{
+	if (!o_pSurface)
+		return ARTI3D_INVALID_PARAMETER;
+	*o_pSurface = new Arti3DSurface(this);
+	(*o_pSurface)->Create(pWindow);
+	return ARTI3D_OK;
 }
 

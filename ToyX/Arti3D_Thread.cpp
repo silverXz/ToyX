@@ -426,7 +426,7 @@ void Arti3DThread::PreProcessTile()
 		int iyMaxTile = ((ymax + 0xF) >> 4) >> g_ciTileSizeShift;
 
 		// Tile[x][y]
-		ixMaxTile = ixMinTile >= iTileX ? iTileX - 1 : ixMaxTile;
+		ixMaxTile = ixMaxTile >= iTileX ? iTileX - 1 : ixMaxTile;
 		iyMaxTile = iyMaxTile >= iTileY ? iTileY - 1 : iyMaxTile;
 
 
