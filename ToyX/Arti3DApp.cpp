@@ -23,6 +23,8 @@ Arti3DApp::~Arti3DApp()
 		delete m_pWindow;
 	if (m_pDevice)
 		delete m_pDevice;
+
+	SDL_Quit();
 }
 
 void Arti3DApp::Run()
@@ -38,6 +40,36 @@ void Arti3DApp::Run()
 
 		m_pWindow->UpdateSurface();
 	}
+
+	std::this_thread::sleep_for(std::chrono::seconds(1));
+}
+
+Arti3DResult Arti3DApp::Init()
+{
+	if (SDL_Init(SDL_INIT_VIDEO) != 0)
+	{
+		fprintf_s(stderr, "SDL_Init Failed!\n");
+		return ARTI3D_UNKOWN;
+	}
+
+	Arti3DResult a3dr = CreateArti3DWindow(&m_pWindow,
+		"ToyX", 
+		SDL_WINDOWPOS_UNDEFINED, 
+		SDL_WINDOWPOS_UNDEFINED, 
+		800, 600, 
+		SDL_WINDOW_SHOWN);
+
+	if (a3dr != ARTI3D_OK)
+		return ARTI3D_UNKOWN;
+
+	Arti3DDeviceParameter a3dDeviceParameter;
+	a3dDeviceParameter.bMultiThread = true;
+	a3dDeviceParameter.iWidth = 800;
+	a3dDeviceParameter.iHeight = 600;
+
+	a3dr = CreateAndInitializeDevice(&m_pDevice, &a3dDeviceParameter);
+
+	return a3dr;
 }
 
 void Arti3DApp::RenderScene()
@@ -58,7 +90,7 @@ void Arti3DApp::RenderScene()
 	if (rotAngle > a3d::TWOPI)
 		rotAngle -= a3d::TWOPI;
 
-	m_pDevice->SetMatrix(TOY_MATRIX_MODEL, a3d::rotate(rotAngle, a3d::vec3(0.0f, 1.0f, 0.0f)));
+	m_pDevice->SetMatrix(ARTI3D_MATRIX_MODEL, a3d::rotate(rotAngle, a3d::vec3(0.0f, 1.0f, 0.0f)));
 
 	tLast = curTime;
 
@@ -110,14 +142,7 @@ Arti3DResult Arti3DApp::CreateAndInitializeDevice(Arti3DDevice **o_pDevice, Arti
 
 	m_pDevice->SetRenderTarget(pRenderTarget);
 
-	// Load Obj.
-	SetupScene();
-
-	m_pDevice->InitializeWorkThreads();
-
 	return ARTI3D_OK;
-	
-
 }
 
 void Arti3DApp::HandleEvent(const SDL_Event& event, Arti3DApp *pApp)
@@ -197,11 +222,13 @@ void Arti3DApp::SetupScene()
 
 	m_pDevice->SetIndexBuffer(pIndexBuffer);
 
-	m_pDevice->SetMatrix(TOY_MATRIX_VIEW, a3d::lookAt(a3d::vec3(4.0f, 4.0f, 4.0f), a3d::vec3(0.0f, 0.0f, 0.0f), a3d::vec3(0.0f, 1.0f, 0.0f)));
-	m_pDevice->SetMatrix(TOY_MATRIX_PROJECTION, a3d::perspective(90.0f, (float)m_pWindow->m_iWidth / m_pWindow->m_iHeight, 0.1f, 15.0f));
+	m_pDevice->SetMatrix(ARTI3D_MATRIX_VIEW, a3d::lookAt(a3d::vec3(4.0f, 4.0f, 4.0f), a3d::vec3(0.0f, 0.0f, 0.0f), a3d::vec3(0.0f, 1.0f, 0.0f)));
+	m_pDevice->SetMatrix(ARTI3D_MATRIX_PROJECTION, a3d::perspective(90.0f, (float)m_pWindow->m_iWidth / m_pWindow->m_iHeight, 0.1f, 15.0f));
 	m_pDevice->SetViewport(0, 0, m_pWindow->m_iWidth, m_pWindow->m_iHeight);
 	m_pDevice->SetVertexShader(NewCubeVS);
 	m_pDevice->SetPixelShader(NewCubeFS);
+
+	m_pDevice->InitializeWorkThreads();
 }
 
 void Arti3DApp::CalculateFPS()

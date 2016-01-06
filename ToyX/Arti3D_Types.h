@@ -59,28 +59,22 @@ enum Arti3DClipMask{
 };
 
 enum Arti3DMatrixType {
-	TOY_MATRIX_MODEL = 0,
-	TOY_MATRIX_VIEW,
-	TOY_MATRIX_PROJECTION,
-	TOY_MATRIX_TYPE_NUM
+	ARTI3D_MATRIX_MODEL = 0,
+	ARTI3D_MATRIX_VIEW,
+	ARTI3D_MATRIX_PROJECTION,
+	ARTI3D_MATRIX_TYPE_NUM
 };
-
-enum GeometryDataType {
-	GEOMETRY_VERTEX,
-	GEOMETRY_INDICE
-};
-
 
 struct Arti3DVSOutput
 {
-	a3d::vec4 p;
-	float varyings[g_ciMaxVaryingNum];
+	a3d::vec4 p;						// Vertex position.
+	float varyings[g_ciMaxVaryingNum];	// Other vertex attributes.
 };
 
 struct Arti3DVertexCache
 {
-	uint32_t				tag;
-	Arti3DVSOutput			vs_output;
+	uint32_t				tag;			// Cache Index.
+	Arti3DVSOutput			vs_output;		// Cached Information.
 
 	Arti3DVertexCache() : tag(UINT_MAX){}
 
@@ -141,45 +135,6 @@ struct RenderContext
 	Arti3DShaderUniform	globals;
 };
 
-struct RenderTarget
-{
-	SDL_Surface *back_buffer;
-	SDL_Surface	*z_buffer;
-	SDL_Surface* tex[g_ciMaxTextureUnit];
-
-	int		iTex;
-
-
-	RenderTarget() : back_buffer(nullptr), z_buffer(nullptr)
-	{
-		for (auto& x : tex)
-			x = nullptr;
-		iTex = 0;
-	}
-	~RenderTarget()
-	{
-	}
-
-	int AddTexture(SDL_Surface *pSF)
-	{
-		if (pSF != nullptr)
-		{
-			std::cerr << "RenderTarget : Null Parameter!\n";
-			return -1;
-		}
-		
-		if (iTex >= g_ciMaxTextureUnit)
-		{
-			std::cerr << "RenderTarget : Max Texture Limits Reached!\n";
-			return -1;
-		}
-
-		tex[iTex] = pSF;
-
-		return iTex++;
-	}
-};
-
 enum Arti3DVertexAttributeFormat
 {
 	ARTI3D_VAF_FLOAT32,
@@ -208,9 +163,9 @@ enum Arti3DFormat {
 
 enum Arti3DFragmentCoverage
 {
-	ARTI3D_FC_TILE = 0,
-	ARTI3D_FC_BLOCK,
-	ARTI3D_FC_MASKED,
+	ARTI3D_FC_TILE = 0,	// Fragment Size = Tile.
+	ARTI3D_FC_BLOCK,	// Fragment Size = Block.
+	ARTI3D_FC_MASKED,	// Fragment Size = 4 pixels.
 };
 
 struct Arti3D_TiledFace
@@ -219,6 +174,10 @@ struct Arti3D_TiledFace
 	Arti3DTileCoverage	coverageType;
 };
 
+// There are 3 kinds of size of fragment.
+// #1: The size of a tile.
+// #2: The size of a block.
+// #3: The size of 4 pixels.
 struct Arti3DFragment
 {
 	int x, y;		// Top Left Coordinates Of This Fragment.

@@ -50,8 +50,6 @@ Arti3DDevice::~Arti3DDevice()
 	SAFE_DELETE_ARRAY(m_pThreads);
 	SAFE_DELETE_ARRAY(m_pTiles);
 	SAFE_DELETE_ARRAY(m_pJobQueue);
-
-	SDL_Quit();
 }
 
 Arti3DResult Arti3DDevice::InitializeDevice(Arti3DDeviceParameter deviceParam)
@@ -95,13 +93,13 @@ void Arti3DDevice::SetMatrix(Arti3DMatrixType matrixType, const a3d::mat4& m)
 	Arti3DShaderUniform &rgu = mRC.globals;
 	switch (matrixType)
 	{
-	case TOY_MATRIX_MODEL:
+	case ARTI3D_MATRIX_MODEL:
 		rgu.model = m;
 		break;
-	case TOY_MATRIX_VIEW:
+	case ARTI3D_MATRIX_VIEW:
 		rgu.view = m;
 		break;
-	case TOY_MATRIX_PROJECTION:
+	case ARTI3D_MATRIX_PROJECTION:
 		rgu.projection = m;
 		break;
 	default:

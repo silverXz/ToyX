@@ -18,17 +18,20 @@ public:
 public:
 	void Run();
 
-	void RenderScene();
-	void SetupScene();
-	void CalculateFPS();
-	
+	Arti3DResult Init();
 
-	Arti3DResult CreateArti3DWindow(Arti3DWindow **o_pWindow,const char *pTitle, int x, int y, int width, int height, int flag);
-	Arti3DResult CreateAndInitializeDevice(Arti3DDevice **o_pDevice, Arti3DDeviceParameter *pA3DDeviceParameters);
+	void RenderScene();
+	
+	void SetupScene();
+
+	void CalculateFPS();
 
 	static void HandleEvent(const SDL_Event& event, Arti3DApp *pApp);
 	static void HandleKeyEvent(const SDL_Event& event, Arti3DApp* pApp);
 
+private:
+	Arti3DResult CreateArti3DWindow(Arti3DWindow **o_pWindow, const char *pTitle, int x, int y, int width, int height, int flag);
+	Arti3DResult CreateAndInitializeDevice(Arti3DDevice **o_pDevice, Arti3DDeviceParameter *pA3DDeviceParameters);
 
 
 private:

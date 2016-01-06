@@ -139,13 +139,19 @@ void Arti3DThread::DistributeWorkLoad(uint32_t iThread, uint32_t iStart, uint32_
 
 void Arti3DThread::GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DVSOutput *o_pVSOutput)
 {
+	// Calculate cache index for this vertex.
 	uint32_t iCacheIndex = i_iVertexIndex&(g_ciCacheSize - 1);
+
+	// Try to fetch result from cache first.
 	if (m_pVertexCache[iCacheIndex].tag == i_iVertexIndex)
 	{
 		*o_pVSOutput = m_pVertexCache[iCacheIndex].vs_output;
 	}
 	else
 	{
+		// Cache miss. Calculate!
+
+		// Setup input for vertex shader.
 		Arti3DVSInput vsinput;
 
 		void *pSrc = nullptr;
@@ -173,8 +179,8 @@ void Arti3DThread::GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DVSOutput 
 			}
 		}
 
-		// Try Something new :)
-
+		// Execute vertex shader.
+		// Save results to cache.
 		m_pParent->mRC.pfnVS(&vsinput, &m_pParent->mRC.globals, &m_pVertexCache[iCacheIndex].vs_output);
 		m_pVertexCache[iCacheIndex].tag = i_iVertexIndex;
 		*o_pVSOutput = m_pVertexCache[iCacheIndex].vs_output;
@@ -199,7 +205,7 @@ void Arti3DThread::ClipTriangle(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVS
 	mask |= calcClipMask(v2);
 	mask |= calcClipMask(v3);
 
-	// No clipping happens,totally inside!
+	// Totally inside!
 	if (mask == 0x0)
 	{
 		PostProcessVertex(v1);
@@ -314,7 +320,9 @@ void Arti3DThread::ClipTriangle(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVS
 
 void Arti3DThread::PostProcessVertex(Arti3DVSOutput *io_pVSOutput)
 {
+	// Perspective division.
 	float invW = 1.0f / io_pVSOutput->p.w;
+
 	io_pVSOutput->p.x *= invW;
 	io_pVSOutput->p.y *= invW;
 	io_pVSOutput->p.w = invW;
@@ -324,18 +332,19 @@ void Arti3DThread::PostProcessVertex(Arti3DVSOutput *io_pVSOutput)
 	
 	// Transform to screen space.
 	Arti3DSurface *pbb = m_pParent->m_pRenderTarget->m_pBackbuffer;
+
 	int w = pbb->iGetWidth();
 	int h = pbb->iGetHeight();
 
 	io_pVSOutput->p.x = (io_pVSOutput->p.x + 1.0f) * 0.5f * w;
 	io_pVSOutput->p.y = h - (io_pVSOutput->p.y + 1.0f)* 0.5f * h;
-
-
 }
 
 void Arti3DThread::AddTransformedFace(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVSOutput *v3)
 {
 	Arti3DTransformedFace f;
+
+	memset(&f, 0, sizeof(Arti3DTransformedFace));
 
 	f.v0x = v1->p.x;
 	f.v0y = v1->p.y;
@@ -419,23 +428,23 @@ void Arti3DThread::PreProcessTile()
 		const int DDY32 = DY32 << 4;
 		const int DDY13 = DY13 << 4;
 
-
+		// Calculate face fixed points boundary.
 		int xmin = std::min(std::min(f->fp1[0], f->fp2[0]), f->fp3[0]);
 		int xmax = std::max(std::max(f->fp1[0], f->fp2[0]), f->fp3[0]);
 		int ymin = std::min(std::min(f->fp1[1], f->fp2[1]), f->fp3[1]);
 		int ymax = std::max(std::max(f->fp1[1], f->fp2[1]), f->fp3[1]);
 
-		// Boundary Index For Tiles
+		// Tile index boundary.
 		int ixMinTile = ((xmin + 0xF) >> 4) >> g_ciTileSizeShift;
 		int ixMaxTile = ((xmax + 0xF) >> 4) >> g_ciTileSizeShift;
 		int iyMinTile = ((ymin + 0xF) >> 4) >> g_ciTileSizeShift;
 		int iyMaxTile = ((ymax + 0xF) >> 4) >> g_ciTileSizeShift;
 
-		// Tile[x][y]
+		// Wrap tile index.
 		ixMaxTile = ixMaxTile >= iTileX ? iTileX - 1 : ixMaxTile;
 		iyMaxTile = iyMaxTile >= iTileY ? iTileY - 1 : iyMaxTile;
 
-
+		// Traversal every tile may cover this face.
 		for (int y = iyMinTile; y <= iyMaxTile; ++y)
 		{
 			for (int x = ixMinTile; x <= ixMaxTile; ++x)
@@ -445,11 +454,14 @@ void Arti3DThread::PreProcessTile()
 
 				Arti3DTile &tile = pTile[iTile];
 
+				// fixed point corners of this tile.
 				int x0 = tile.m_iX << 4;
 				int x1 = (tile.m_iX + g_ciTileSize - 1) << 4;
 				int y0 = tile.m_iY << 4;
 				int y1 = (tile.m_iY + g_ciTileSize - 1) << 4;
 
+				// calculate coverage mask that "4 tile corners" against "one edge".
+				// "one edge" indicated by @C,@dy,@dx.
 				auto calcEdgeMask = [&](int C, int dy, int dx) {
 					bool m0 = (C + dy * x0 - dx * y0) > 0;
 					bool m1 = (C + dy * x0 - dx * y1) > 0;
@@ -504,13 +516,12 @@ void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
 		
 		for (uint32_t j = 0; j < io_pTile->m_pIndexBufferSize[i]; ++j)
 		{
-
-
 			Arti3DTileCoverage eTileCoverage = io_pTile->m_ppTileCoverage[i][j];
 			uint32_t iFace = io_pTile->m_ppFaceIndexBuffer[i][j];
 			if (eTileCoverage == ARTI3D_TC_ALL)
 			{
 				Arti3DFragment frag;
+				memset(&frag, 0, sizeof(Arti3DFragment));
 				frag.x = io_pTile->m_iX;
 				frag.y = io_pTile->m_iY;
 				frag.faceID = iFace;
@@ -520,7 +531,8 @@ void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
 				continue;
 			}
 
-
+			// This tile is partially covered!
+			// Calculate precious coverage masks!
 			Arti3DTransformedFace *f = &tmpThread->m_pTransformedFace[iFace];
 			
 			int DX21 = f->fp2[0] - f->fp1[0];
@@ -532,6 +544,7 @@ void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
 
 			int faceOrient = DX13*DY21 - DX21*DY13;
 
+			// Back face culling.
 			if (faceOrient > 0)
 				return;
 
@@ -554,7 +567,7 @@ void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
 			const int DDY32 = DY32 << 4;
 			const int DDY13 = DY13 << 4;
 
-			// For Every 8 * 8 Blocks.
+			// Break this tile into blocks (8*8 pixels).
 			for (int y = io_pTile->m_iY; y < io_pTile->m_iY+ io_pTile->m_iHeight; y += g_ciBlockSize)
 			{
 				for (int x = io_pTile->m_iX; x < io_pTile->m_iX + io_pTile->m_iWidth; x += g_ciBlockSize)
@@ -564,6 +577,8 @@ void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
 					int y0 = y << 4;
 					int y1 = (y + g_ciBlockSize - 1) << 4;
 
+					// Calculate coverage mask that "block corners" against "one edge".
+					// "one edge" indicated by @C,@dy,@dx.
 					auto calcEdgeMask = [&](int C, int dy, int dx) {
 						bool m0 = (C + dy * x0 - dx * y0) > 0;
 						bool m1 = (C + dy * x0 - dx * y1) > 0;
@@ -572,7 +587,7 @@ void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
 						return (m0 << 0) | (m1 << 1) | (m2 << 2) | (m3 << 3);
 					};
 
-					// Test Block Against 3 Edges
+					// Test block corners against 3 edges
 					int a1 = calcEdgeMask(C1, DY21, DX21);
 					int a2 = calcEdgeMask(C2, DY32, DX32);
 					int a3 = calcEdgeMask(C3, DY13, DX13);
@@ -585,6 +600,7 @@ void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
 					if (a1 == 0xF && a2 == 0xF && a3 == 0xF)
 					{
 						Arti3DFragment frag;
+						memset(&frag, 0, sizeof(Arti3DFragment));
 						frag.x = x;
 						frag.y = y;
 						frag.coverType = ARTI3D_FC_BLOCK;
@@ -594,8 +610,8 @@ void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
 						continue;
 					}
 
-					// Block Partially Inside Trianglel!
-					// Calculate Coverage Mask!
+					// Block partially inside trianglel!
+					// Calculate coverage mask!
 					__m128i B1 = _mm_set1_epi32(C1 + DY21 * x0 - DX21 * y0);
 					__m128i B2 = _mm_set1_epi32(C2 + DY32 * x0 - DX32 * y0);
 					__m128i B3 = _mm_set1_epi32(C3 + DY13 * x0 - DX13 * y0);
@@ -612,7 +628,7 @@ void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
 					__m128i offsetDDX32 = _mm_set1_epi32(DDX32);
 					__m128i offsetDDX13 = _mm_set1_epi32(DDX13);
 
-
+					// Traversal every line (8 pixels) of the block.
 					for (int k = 0; k < g_ciBlockSize; ++k)
 					{
 						// First 4 pixels
@@ -632,6 +648,7 @@ void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
 						if (0 != im)
 						{
 							Arti3DFragment frag;
+							memset(&frag, 0, sizeof(Arti3DFragment));
 							frag.x = x;
 							frag.y = y + k;
 							frag.faceID = iFace;
@@ -658,6 +675,7 @@ void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
 						if (0 != im)
 						{
 							Arti3DFragment frag;
+							memset(&frag, 0, sizeof(Arti3DFragment));
 							frag.x = x + 4;
 							frag.y = y + k;
 							frag.faceID = iFace;

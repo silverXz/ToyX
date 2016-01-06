@@ -40,8 +40,8 @@ private:
 	// 3.Clip And Assembly Triangle.
 	void ProcessVertex();
 	
-	// 1.Test Triangles In Thread's Local Buffer Against Tiles.
-	// 2.Add Overlapped Triangle ID To Tile's Local Buffer. 
+	// 1.Test transformed faces against tiles.
+	// 2.Add overlapped face index to tile's local buffer. 
 	// 3.Then Add The Tile To Arti3DDevice's Job Queue For Further Process (Raterization). 
 	void PreProcessTile();
 
