@@ -65,6 +65,12 @@ enum Arti3DMatrixType {
 	ARTI3D_MATRIX_TYPE_NUM
 };
 
+typedef a3d::vec4 ShaderRegister;
+
+struct Arti3DVSInput {
+	ShaderRegister ShaderInputs[g_ciMaxVSRegister];
+};
+
 struct Arti3DVSOutput
 {
 	a3d::vec4 p;						// Vertex position.
@@ -115,9 +121,6 @@ enum Arti3DResult {
 	ARTI3D_OUT_OF_MEMORY,
 	ARTI3D_UNKOWN,
 };
-
-
-
 
 struct Arti3DShaderUniform
 {
@@ -202,15 +205,6 @@ struct Arti3_DTile
 	int x, y;
 	int w, h;
 };
-
-
-typedef a3d::vec4 ShaderRegister;
-
-struct Arti3DVSInput {
-	ShaderRegister ShaderInputs[g_ciMaxVSRegister];
-};
-
-
 
 // Inline Helper Functions
 

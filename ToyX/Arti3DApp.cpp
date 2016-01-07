@@ -279,4 +279,40 @@ void Arti3DApp::CreateCheckboardTexture()
 			pp[i * iTexWidth + j] = cc;
 		}
 	}
+
+	// Let's try to sample.
+	__m128 u = _mm_set_ps(0.1f, 0.3f, 0.7f, 0.9f);
+	__m128 v = _mm_set_ps(0.2f, 0.7f, 0.5f, 0.6f);
+
+	__m128 tU = _mm_mul_ps(u, _mm_set_ps1(iTexWidth - 1));
+	__m128 tV = _mm_mul_ps(v, _mm_set_ps1(iTexHeight - 1));
+
+	__m128i iU = _mm_cvtps_epi32(tU);
+	__m128i iV = _mm_cvtps_epi32(tV);
+
+	int ipitch = m_pDevice->m_pTexture->iGetPitch();
+	int iBytesPerPixel = m_pDevice->m_pTexture->iGetBitPerPixel() / 8;
+
+	auto mm_mul_epu32 = [](__m128i& a, __m128i& b) {
+		__m128i tmp1 = _mm_mul_epi32(a, b);
+		__m128i tmp2 = _mm_mul_epi32(_mm_srli_si128(a, 4), _mm_srli_si128(b, 4));
+		return _mm_unpacklo_epi32(_mm_shuffle_epi32(tmp1,_MM_SHUFFLE(0,0,2,0)),
+			_mm_shuffle_epi32(tmp2,_MM_SHUFFLE(0,0,2,0)));
+	};
+
+	__m128i fuck1 = mm_mul_epu32(iV, _mm_set1_epi32(ipitch));
+	__m128i fuck2 = mm_mul_epu32(iU, _mm_set1_epi32(iBytesPerPixel));
+
+	__m128i iSamples = _mm_add_epi32(fuck1,fuck2);
+
+	uint8_t *ps = reinterpret_cast<uint8_t*>(pp);
+
+	uint32_t sb = _mm_extract_epi32(iSamples, 0);
+	uint32_t color0 = *reinterpret_cast<uint32_t*>(&ps[sb]);
+	uint32_t color1 = *reinterpret_cast<uint32_t*>(&ps[_mm_extract_epi32(iSamples, 1)]);
+	uint32_t color2 = *reinterpret_cast<uint32_t*>(&ps[_mm_extract_epi32(iSamples, 2)]);
+	uint32_t color3 = *reinterpret_cast<uint32_t*>(&ps[_mm_extract_epi32(iSamples, 3)]);
+
+	__m128i color = _mm_set_epi32(color3, color2, color1, color0);
+		
 }

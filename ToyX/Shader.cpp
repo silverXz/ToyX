@@ -19,3 +19,18 @@ void NewCubeFS(Arti3DPSParam *io_pPSPram)
 	io_pPSPram->Output.g = io_pPSPram->Varyings[1];
 	io_pPSPram->Output.b = io_pPSPram->Varyings[2];
 }
+
+void CheckboardCubeVS(Arti3DVSInput *i_pVSInput, Arti3DShaderUniform *i_pUniform, Arti3DVSOutput *o_pVSOutput)
+{
+	// pass through vertex position.
+	o_pVSOutput->p = i_pUniform->mvp * i_pVSInput->ShaderInputs[0];
+
+	// pass through texture cordinates.
+	o_pVSOutput->varyings[0] = i_pVSInput->ShaderInputs[1].x;
+	o_pVSOutput->varyings[1] = i_pVSInput->ShaderInputs[1].y;
+}
+
+void CheckboardCubeFS(Arti3DPSParam *io_pPSParam)
+{
+
+}

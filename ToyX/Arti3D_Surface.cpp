@@ -6,7 +6,8 @@
 #include <SDL/SDL.h>
 
 
-Arti3DSurface::Arti3DSurface(Arti3DDevice *i_pParent) : m_pParent(i_pParent)
+Arti3DSurface::Arti3DSurface(Arti3DDevice *i_pParent) : m_pParent(i_pParent),
+m_iBpp(0)
 {
 
 }
@@ -23,6 +24,7 @@ Arti3DResult Arti3DSurface::Create(uint32_t bpp, uint32_t i_iWidth, uint32_t i_i
 
 	if (!m_pSurface)
 		return ARTI3D_INVALID_FORMAT;
+	m_iBpp = bpp;
 	return ARTI3D_OK;
 }
 
@@ -34,7 +36,8 @@ Arti3DResult Arti3DSurface::Create(Arti3DWindow *pWindow)
 	
 	if (!m_pSurface)
 		return ARTI3D_INVALID_PARAMETER;
-	
+	m_iBpp = 32;
+
 	return ARTI3D_OK;
 }
 
@@ -43,7 +46,17 @@ void* Arti3DSurface::pGetPixelsDataPtr()
 	return m_pSurface->pixels;
 }
 
-int Arti3DSurface::iGetWidth() 
+int Arti3DSurface::iGetBitPerPixel()
+{
+	return m_iBpp;
+}
+
+int Arti3DSurface::iGetPitch()
+{
+	return m_pSurface->pitch;
+}
+
+int Arti3DSurface::iGetWidth()
 {
 	return m_pSurface->w;
 }

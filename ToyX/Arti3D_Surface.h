@@ -38,6 +38,10 @@ public:
 
 	void*	pGetPixelsDataPtr();
 
+	int iGetBitPerPixel();
+
+	int iGetPitch();
+
 	int iGetWidth() ;
 	
 	int iGetHeight() ;
@@ -48,6 +52,8 @@ private:
 	Arti3DDevice	*m_pParent;
 
 	SDL_Surface		*m_pSurface;
+
+	int				m_iBpp;
 };
 
 

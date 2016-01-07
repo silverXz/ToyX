@@ -94,6 +94,7 @@
     <ClInclude Include="Arti3D_Tile.h" />
     <ClInclude Include="Arti3D_VertexBuffer.h" />
     <ClInclude Include="Arti3D_VertexLayout.h" />
+    <ClInclude Include="Arti3D_VertexShader.h" />
     <ClInclude Include="Arti3D_Window.h" />
     <ClInclude Include="Clock.h" />
     <ClInclude Include="Helper.h" />
@@ -114,6 +115,7 @@
     <ClCompile Include="Arti3D_Tile.cpp" />
     <ClCompile Include="Arti3D_VertexBuffer.cpp" />
     <ClCompile Include="Arti3D_VertexLayout.cpp" />
+    <ClCompile Include="Arti3D_VertexShader.cpp" />
     <ClCompile Include="Arti3D_Window.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Arti3D_SSE_Math.cpp" />

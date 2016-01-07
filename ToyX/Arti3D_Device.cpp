@@ -3,8 +3,10 @@
 #include <algorithm>
 #include <cstdlib>
 #include <assert.h>
+
 #include <xmmintrin.h>
 #include <smmintrin.h>
+#include <emmintrin.h>
 
 #include <SDL/SDL.h>
 
