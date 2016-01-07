@@ -31,11 +31,11 @@ public:
 	SSE_Float& operator *= (float);
 	SSE_Float& operator /= (float);
 
+	operator __m128() const;
+
 	SSE_Float operator +() const;
 	SSE_Float operator -() const;
-
-
-
+		
 	SSE_Float operator + (const SSE_Float&) const;
 	SSE_Float operator - (const SSE_Float&) const;
 	SSE_Float operator * (const SSE_Float&) const;
@@ -191,6 +191,15 @@ public:
 
 SSE_Vec4 operator * (const SSE_Float &f, const SSE_Vec4 &v);
 
+inline __m128 SSE_Clamp(__m128 &val, __m128 fMin, __m128 fMax)
+{
+	return _mm_max_ps(_mm_min_ps(val, fMax), fMin);
+}
+
+inline __m128 SSE_Wrap(__m128 &val)
+{
+	return _mm_max_ps(_mm_sub_ps(val, _mm_floor_ps(val)), _mm_set1_ps(0.0f));
+}
 
 inline SSE_Float SSqrt(const SSE_Float &f)
 {

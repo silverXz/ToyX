@@ -30,6 +30,9 @@ public:
 	static void HandleKeyEvent(const SDL_Event& event, Arti3DApp* pApp);
 
 private:
+
+	void CreateCheckboardTexture();
+
 	Arti3DResult CreateArti3DWindow(Arti3DWindow **o_pWindow, const char *pTitle, int x, int y, int width, int height, int flag);
 	Arti3DResult CreateAndInitializeDevice(Arti3DDevice **o_pDevice, Arti3DDeviceParameter *pA3DDeviceParameters);
 

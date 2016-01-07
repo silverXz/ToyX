@@ -251,8 +251,10 @@ private:
 
 	Arti3DRenderTarget			*m_pRenderTarget;
 
+	Arti3DSurface				*m_pTexture;
+
 	// Render State
-	RenderContext	mRC;
+	RenderContext				mRC;
 
 	bool						m_bThreadStop;
 };

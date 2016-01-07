@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "SSE_Math.h"
+#include "Arti3D_SSE_Math.h"
 
 
 
@@ -17,6 +17,11 @@ SSE_Float::SSE_Float(float ss)
 SSE_Float::SSE_Float(float a, float b, float c, float d)
 {
 	_mm_set_ps(a, b, c, d);
+}
+
+SSE_Float::operator __m128() const
+{
+	return f;
 }
 
 SSE_Float& SSE_Float::operator+=(const SSE_Float &rsf)

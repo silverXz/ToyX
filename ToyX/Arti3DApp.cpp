@@ -7,6 +7,7 @@
 #include "Arti3D_VertexLayout.h"
 #include "Arti3D_VertexBuffer.h"
 #include "Arti3D_IndexBuffer.h"
+#include "Arti3D_Surface.h"
 #include "Clock.h"
 
 
@@ -228,6 +229,8 @@ void Arti3DApp::SetupScene()
 	m_pDevice->SetVertexShader(NewCubeVS);
 	m_pDevice->SetPixelShader(NewCubeFS);
 
+	CreateCheckboardTexture();
+	
 	m_pDevice->InitializeWorkThreads();
 }
 
@@ -245,4 +248,35 @@ void Arti3DApp::CalculateFPS()
 	}
 	else
 		++iFrames;
+}
+
+void Arti3DApp::CreateCheckboardTexture()
+{
+	if (!m_pDevice)
+		return;
+	int iTexWidth = 800;
+	int iTexHeight = 800;
+	Arti3DResult a3dr = m_pDevice->CreateRGBSurface(&m_pDevice->m_pTexture, iTexWidth, iTexHeight, 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
+	
+	if (a3dr != ARTI3D_OK)
+		return;
+
+	int iBoardLength = 32;
+
+	uint32_t white = 0xFFFF;
+	uint32_t black = 0x0;
+
+	uint32_t cc = white;
+
+	uint32_t *pp = (uint32_t*)m_pDevice->m_pTexture->pGetPixelsDataPtr();
+
+	for (int i = 0; i < iTexHeight; ++i)
+	{
+		int br = (i & iBoardLength);
+		for (int j = 0; j < iTexWidth; ++j)
+		{
+			cc = (j & iBoardLength) ^ br ? black : white;
+			pp[i * iTexWidth + j] = cc;
+		}
+	}
 }

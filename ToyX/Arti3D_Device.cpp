@@ -26,6 +26,7 @@ Arti3DDevice::Arti3DDevice() : m_pIndexBuffer(nullptr),
 	m_pThreads(nullptr),
 	m_pTiles(nullptr),
 	m_pRenderTarget(nullptr),
+	m_pTexture(nullptr),
 	m_pJobQueue(nullptr),
 	m_iJobStart(0),
 	m_iJobEnd(0),
@@ -47,6 +48,7 @@ Arti3DDevice::~Arti3DDevice()
 	SAFE_DELETE(m_pVertexBuffer);
 	SAFE_DELETE(m_pVertexLayout);
 	SAFE_DELETE(m_pRenderTarget);
+	SAFE_DELETE(m_pTexture);
 	SAFE_DELETE_ARRAY(m_pThreads);
 	SAFE_DELETE_ARRAY(m_pTiles);
 	SAFE_DELETE_ARRAY(m_pJobQueue);
@@ -175,12 +177,12 @@ void Arti3DDevice::SetPixelColor(int x, int y, uint32_t c)
 {
 	Arti3DSurface *pbb = m_pRenderTarget ? m_pRenderTarget->pGetBackBuffer() : nullptr;
 
-	if (!pbb || x >= pbb->m_iWidth || y >= pbb->m_iHeight)	
+	if (!pbb || x >= pbb->iGetWidth() || y >= pbb->iGetHeight())	
 		return;
 
 	void *pp = pbb->pGetPixelsDataPtr();
 
-	((uint32_t*)pp)[y * pbb->m_iWidth + x] = c;
+	((uint32_t*)pp)[y * pbb->iGetWidth() + x] = c;
 }
 
 void Arti3DDevice::Draw3DSolidTriangle(const a3d::vec4& p1, const a3d::vec4& p2, const a3d::vec4& p3, const a3d::vec4& c)
@@ -206,8 +208,8 @@ void Arti3DDevice::Draw3DSolidTriangle(const a3d::vec4& p1, const a3d::vec4& p2,
 	clip3.x *= invW3;
 	clip3.y *= invW3;
 	
-	int w = pbb->m_iWidth;
-	int h = pbb->m_iHeight;
+	int w = pbb->iGetWidth();
+	int h = pbb->iGetHeight();
 
 	float half_width = 0.5f * w;
 	float half_height = 0.5f * h;

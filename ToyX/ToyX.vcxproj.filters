@@ -51,9 +51,6 @@
     <ClInclude Include="Clock.h">
       <Filter>Utility</Filter>
     </ClInclude>
-    <ClInclude Include="SSE_Math.h">
-      <Filter>ToyMath</Filter>
-    </ClInclude>
     <ClInclude Include="Helper.h">
       <Filter>Utility</Filter>
     </ClInclude>
@@ -99,13 +96,13 @@
     <ClInclude Include="Arti3DApp.h">
       <Filter>Arti3D\Header</Filter>
     </ClInclude>
+    <ClInclude Include="Arti3D_SSE_Math.h">
+      <Filter>ToyMath</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SSE_Math.cpp">
-      <Filter>ToyMath</Filter>
     </ClCompile>
     <ClCompile Include="Arti3D_Device.cpp">
       <Filter>Arti3D_Core\Source</Filter>
@@ -142,6 +139,9 @@
     </ClCompile>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Arti3D_SSE_Math.cpp">
+      <Filter>ToyMath</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

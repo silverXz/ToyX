@@ -48,10 +48,6 @@ private:
 	Arti3DDevice	*m_pParent;
 
 	SDL_Surface		*m_pSurface;
-
-	int				m_iWidth;
-	int				m_iHeight;
-	Arti3DFormat	m_fmtFormat;
 };
 
 

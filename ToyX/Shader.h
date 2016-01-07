@@ -2,7 +2,7 @@
 
 #include <xmmintrin.h>
 #include <smmintrin.h>
-#include "SSE_Math.h"
+#include "Arti3D_SSE_Math.h"
 
 
 
