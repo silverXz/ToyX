@@ -2,17 +2,36 @@
 #define _ARTI3D_THREAD_H_
 
 #include "Arti3D_Types.h"
-
-class Arti3DTile;
+#include "Arti3D_ForwardDecl.h"
+#include "Arti3D_Math.h"
 
 class Arti3DThread
 {
+	enum Arti3DClipMask{
+		CLIP_POS_X = 1,
+		CLIP_NEG_X = 2,
+		CLIP_POS_Y = 4,
+		CLIP_NEG_Y = 8,
+		CLIP_POS_Z = 16,
+		CLIP_NEG_Z = 32
+	};
+
+	struct Arti3DTransformedFace
+	{
+		float v0x, v0y, v0w;
+		float v0v[ARTI3D_MAX_VARYING];
+
+		int fp1[2];
+		int fp2[2];
+		int fp3[2];
+
+		a3d::vec2 dw;
+		a3d::vec2 dv[ARTI3D_MAX_VARYING];
+	};
+
 protected:
-
 	friend class Arti3DDevice;
-
 	Arti3DThread();
-
 public:
 	~Arti3DThread();
 

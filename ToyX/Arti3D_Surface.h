@@ -2,14 +2,10 @@
 #define _ARTI3D_SURFACE_H_
 
 #include "Arti3D_Types.h"
-
-struct SDL_Surface;
-class Arti3DWindow;
+#include "Arti3D_ForwardDecl.h"
 
 class Arti3DSurface
 {
-
-
 protected:
 	friend class Arti3DDevice;
 	friend class Arti3DPixelShader;

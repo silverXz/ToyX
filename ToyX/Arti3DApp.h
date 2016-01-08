@@ -1,13 +1,10 @@
-#ifndef _ARTI3D_H_
-#define _ARTI3D_H_
+#ifndef _ARTI3DAPP_H_
+#define _ARTI3DAPP_H_
 
 #include <string>
 
 #include "Arti3D_Types.h"
-
-class Arti3DDevice;
-class Arti3DWindow;
-union SDL_Event;
+#include "Arti3D_ForwardDecl.h"
 
 class Arti3DApp
 {
@@ -21,11 +18,8 @@ public:
 	Arti3DResult Init();
 
 	void RenderScene();
-	
 	void SetupScene();
-
 	void SetupScene2();
-
 	void CalculateFPS();
 
 	static void HandleEvent(const SDL_Event& event, Arti3DApp *pApp);

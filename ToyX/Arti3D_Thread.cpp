@@ -37,17 +37,17 @@ void Arti3DThread::ClearCacheAndBuffer()
 
 	if (m_pVertexCache)
 	{
-		for (int i = 0; i < g_ciCacheSize; ++i)
+		for (int i = 0; i < ARTI3D_MAX_CACHE_SIZE; ++i)
 			m_pVertexCache[i].Clear();
 	}
 }
 Arti3DResult Arti3DThread::Create(Arti3DDevice *pParent, uint32_t iThread)
 {
-	m_pVertexCache = new Arti3DVertexCache[g_ciCacheSize];
+	m_pVertexCache = new Arti3DVertexCache[ARTI3D_MAX_CACHE_SIZE];
 	if (!m_pVertexCache)
 		return ARTI3D_OUT_OF_MEMORY;
 
-	m_pTransformedFace = new Arti3DTransformedFace[g_ciMaxClipVertexNumPerPatch/(g_ciMaxThreadNum * 3)];
+	m_pTransformedFace = new Arti3DTransformedFace[ARTI3D_MAX_CLIP_VERTEX_PER_PATCH/(ARTI3D_MAX_THREAD * 3)];
 	if (!m_pTransformedFace)
 		return ARTI3D_OUT_OF_MEMORY;
 
@@ -80,7 +80,7 @@ void Arti3DThread::WorkFunc(Arti3DThread *pThread)
 		
 		if (--pDev->m_iWorkingThread == 0)
 		{
-			pDev->m_iWorkingThread = g_ciMaxThreadNum;
+			pDev->m_iWorkingThread = ARTI3D_MAX_THREAD;
 			pDev->m_iStage = 1;
 		} 
 
@@ -119,7 +119,7 @@ void Arti3DThread::ProcessVertex()
 
 	for (uint32_t i = m_iStart; i < m_iEnd; i+=3)
 	{
-		Arti3DVSOutput v[g_ciMaxClipVertex];
+		Arti3DVSOutput v[ARTI3D_MAX_CLIP_VERTEX];
 
 		for (int j = 0; j < 3; ++j)
 		{
@@ -141,7 +141,7 @@ void Arti3DThread::DistributeWorkLoad(uint32_t iThread, uint32_t iStart, uint32_
 void Arti3DThread::GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DVSOutput *o_pVSOutput)
 {
 	// Calculate cache index for this vertex.
-	uint32_t iCacheIndex = i_iVertexIndex&(g_ciCacheSize - 1);
+	uint32_t iCacheIndex = i_iVertexIndex&(ARTI3D_MAX_CACHE_SIZE - 1);
 
 	// Try to fetch result from cache first.
 	if (m_pVertexCache[iCacheIndex].tag == i_iVertexIndex)
@@ -237,7 +237,7 @@ void Arti3DThread::ClipTriangle(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVS
 
 	// We need 2 index array ( with size CLIP_VERTEX_MAX ) to do ping pong buffering.
 	Arti3DVSOutput *v = v1;
-	uint32_t inout[2][g_ciMaxClipVertex];
+	uint32_t inout[2][ARTI3D_MAX_CLIP_VERTEX];
 	uint32_t *in = inout[0], *out = inout[1];
 	in[0] = 0;	in[1] = 1; in[2] = 2;
 
@@ -259,7 +259,7 @@ void Arti3DThread::ClipTriangle(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVS
 		out->p.y = v1->p.y + (v2->p.y - v1->p.y) * t;
 		out->p.z = v1->p.z + (v2->p.z - v1->p.z) * t;
 		out->p.w = v1->p.w + (v2->p.w - v1->p.w) * t;
-		for (int i = 0; i < g_ciMaxVaryingNum; ++i)
+		for (int i = 0; i < ARTI3D_MAX_VARYING; ++i)
 			out->varyings[i] = v1->varyings[i] + (v2->varyings[i] - v1->varyings[i]) * t;
 	};
 
@@ -328,7 +328,7 @@ void Arti3DThread::PostProcessVertex(Arti3DVSOutput *io_pVSOutput)
 	io_pVSOutput->p.y *= invW;
 	io_pVSOutput->p.w = invW;
 
-	for (int j = 0; j < g_ciMaxVaryingNum; ++j)
+	for (int j = 0; j < ARTI3D_MAX_VARYING; ++j)
 		io_pVSOutput->varyings[j] *= invW;
 	
 	// Transform to screen space.
@@ -351,7 +351,7 @@ void Arti3DThread::AddTransformedFace(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Ar
 	f.v0y = v1->p.y;
 	f.v0w = v1->p.w;
 
-	for (int i = 0; i < g_ciMaxVaryingNum; ++i)
+	for (int i = 0; i < ARTI3D_MAX_VARYING; ++i)
 		f.v0v[i] = v1->varyings[i];
 
 	f.fp1[0] = iRound(v1->p.x * 16.0f);
@@ -372,7 +372,7 @@ void Arti3DThread::AddTransformedFace(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Ar
 	float CS = fdx21 * fdy31 - fdx31 * fdy21;
 	ComputeTriangleGradient(CS, v2->p.w - v1->p.w, v3->p.w - v1->p.w, fdx21, fdy21, fdx31, fdy31, &f.dw);
 
-	for (int i = 0; i < g_ciMaxVaryingNum; ++i)
+	for (int i = 0; i < ARTI3D_MAX_VARYING; ++i)
 	{
 		ComputeTriangleGradient(CS, v2->varyings[i] - v1->varyings[i], v3->varyings[i] - v1->varyings[i], fdx21, fdy21, fdx31, fdy31, &f.dv[i]);
 	}
@@ -511,7 +511,7 @@ void Arti3DThread::PreProcessTile()
 
 void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
 {
-	for (int i = 0; i < g_ciMaxThreadNum; ++i)
+	for (int i = 0; i < ARTI3D_MAX_THREAD; ++i)
 	{
 		PArti3DThread tmpThread = &m_pParent->m_pThreads[i];
 		
@@ -719,7 +719,7 @@ void Arti3DThread::RenderFragment(Arti3DTile *i_pTile)
 void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
 {
 	__m128 W0, W1, WDY;
-	__m128 V0[g_ciMaxVaryingNum], V1[g_ciMaxVaryingNum], VDY[g_ciMaxVaryingNum];
+	__m128 V0[ARTI3D_MAX_VARYING], V1[ARTI3D_MAX_VARYING], VDY[ARTI3D_MAX_VARYING];
 	__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
 	__m128 C1 = _mm_set_ps1(4.0f);
 
@@ -812,7 +812,7 @@ void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
 void Arti3DThread::RenderBlockFragments(Arti3DFragment *i_pFrag)
 {
 	__m128 W0, W1, WDY;
-	__m128 V0[g_ciMaxVaryingNum], V1[g_ciMaxVaryingNum], VDY[g_ciMaxVaryingNum];
+	__m128 V0[ARTI3D_MAX_VARYING], V1[ARTI3D_MAX_VARYING], VDY[ARTI3D_MAX_VARYING];
 	__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
 	__m128 C1 = _mm_set_ps1(4.0f);
 
@@ -898,7 +898,7 @@ void Arti3DThread::RenderBlockFragments(Arti3DFragment *i_pFrag)
 void Arti3DThread::RenderMaskedFragments(Arti3DFragment *i_pFrag)
 {
 	__m128 W0, W1, WDY;
-	__m128 V0[g_ciMaxVaryingNum], V1[g_ciMaxVaryingNum], VDY[g_ciMaxVaryingNum];
+	__m128 V0[ARTI3D_MAX_VARYING], V1[ARTI3D_MAX_VARYING], VDY[ARTI3D_MAX_VARYING];
 	__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
 	__m128 C1 = _mm_set_ps1(4.0f);
 	__m128i iMask = _mm_set_epi32(8, 4, 2, 1);
@@ -971,7 +971,7 @@ void Arti3DThread::CalcVaryings(Arti3DTransformedFace* f, int x, int y, __m128 &
 
 	WDY = _mm_set_ps1(f->dw.y);
 
-	for (int i = 0; i < g_ciMaxVaryingNum; ++i)
+	for (int i = 0; i < ARTI3D_MAX_VARYING; ++i)
 	{
 		float dvx = f->dv[i].x;
 		float dvy = f->dv[i].y;
@@ -991,7 +991,7 @@ void Arti3DThread::CalcVaryings(Arti3DTransformedFace* f, int x, int y, __m128 &
 void Arti3DThread::PreInterpolateVaryings(__m128 &W, __m128 *iV, SSE_Float *oV)
 {
 	__m128 w = _mm_rcp_ps(W);
-	for (int i = 0; i < g_ciMaxVaryingNum; ++i)
+	for (int i = 0; i < ARTI3D_MAX_VARYING; ++i)
 		oV[i] = _mm_mul_ps(w, iV[i]);
 }
 
@@ -1000,7 +1000,7 @@ void Arti3DThread::IncVaryingsAlongY(__m128 &W0, __m128 &W1, __m128 WDY, __m128 
 	W0 = _mm_add_ps(W0, WDY);
 	W1 = _mm_add_ps(W1, WDY);
 
-	for (int i = 0; i < g_ciMaxVaryingNum; ++i)
+	for (int i = 0; i < ARTI3D_MAX_VARYING; ++i)
 	{
 		V0[i] = _mm_add_ps(V0[i], VDY[i]);
 		V1[i] = _mm_add_ps(V1[i], VDY[i]);

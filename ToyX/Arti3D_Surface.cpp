@@ -4,8 +4,6 @@
 #include "Arti3D_Window.h"
 
 #include <SDL/SDL.h>
-#include <SDL/SDL_pixels.h>
-
 
 Arti3DSurface::Arti3DSurface(Arti3DDevice *i_pParent) : m_pParent(i_pParent)
 {

@@ -4,6 +4,7 @@
 #include <memory>
 
 class Arti3DWindow;
+class Arti3DDevice;
 class Arti3DRenderTarget;
 class Arti3DSurface;
 class Arti3DVertexBuffer;
@@ -35,4 +36,23 @@ typedef Arti3DVertexShader*					PArti3DVertexShader;
 typedef Arti3DPixelShader*			 		PArti3DPixelShader;
 typedef Arti3DThread*						PArti3DThread;
 typedef Arti3DTile*							PArti3DTile;
+
+
+
+// Arti3D Structure Declaration!
+struct Arti3DVSOutput;
+struct Arti3DVSInput;
+struct Arti3DVertexCache;
+struct Arti3DFragment;
+struct Arti3DDeviceParameter;
+
+typedef	Arti3DVSOutput*						PArti3DVSOutput;
+typedef Arti3DVSInput*						PArti3DVSInput;
+
+
+// SDL Declarations!
+struct SDL_Window;
+struct SDL_Surface;
+union SDL_Event;
+
 #endif

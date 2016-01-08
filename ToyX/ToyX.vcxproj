@@ -85,6 +85,7 @@
     <Text Include="..\..\..\..\SilverX%27s Space\VS2013 Projects\ToyX\ToyX\ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Arti3D.h" />
     <ClInclude Include="Arti3DApp.h" />
     <ClInclude Include="Arti3D_ForwardDecl.h" />
     <ClInclude Include="Arti3D_IndexBuffer.h" />

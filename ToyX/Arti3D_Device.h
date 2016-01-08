@@ -6,23 +6,26 @@
 #include <fstream>
 #include <atomic>
 #include <thread>
-#include "Shader.h"
 #include "Arti3D_Types.h"
 #include "Arti3D_ForwardDecl.h"
 #include "Arti3D_RenderTarget.h"
 
+struct Arti3DDeviceParameter
+{
+	uint32_t	iWidth, iHeight;
+	bool		bMultiThread;
+};
+
+struct RenderContext
+{
+	PArti3DVertexShader	pVertexShader;
+	PArti3DPixelShader	pPixelShader;
+	Arti3DShaderUniform	globals;
+	PArti3DSurface		pSurfaces[ARTI3D_MAX_TEXTURE_UNIT];
+};
+
 class Arti3DDevice
 {
-
-	struct RenderContext
-	{
-		PArti3DVertexShader	pVertexShader;
-		PArti3DPixelShader	pPixelShader;
-		Arti3DShaderUniform	globals;
-		PArti3DSurface		pSurfaces[ARTI3D_MAX_TEXTURE_UNIT];
-	};
-
-
 	friend class Arti3DThread;
 	friend class Arti3DPixelShader;
 	friend class Arti3DApp;
@@ -135,20 +138,12 @@ public:
 
 	void Draw3DSolidTriangle(const a3d::vec4& p1,const a3d::vec4& p2,const a3d::vec4& p3,const a3d::vec4& c);
 
-
-
-	void DrawMesh();
-
-	void DrawMesh_TileBase();
-
 	void DrawMesh_MT();
 
 private:
 	// Stop All Working Threads. It Is Called In The Dtor Before
 	// Thread Objects Are Deleted.
 	void StopAllThreads();
-
-	void InitTile();
 
 	// As The Name Implies, Create The Tiles And Job Queue.
 	Arti3DResult CreateTilesAndJobQueue();
@@ -159,49 +154,8 @@ private:
 	// Wait For All Worker Threads Finished Rendering Current Frame.
 	void SyncronizeWorkerThreads();
 
-
 	// For Debug Use.
 	void DrawTileGrid();
-
-	// Rasterize Triangle With SIMD Instructions	
-	void RasterizeTriangle_SIMD(Arti3DTransformedFace *f);
-
-	void Tilize(uint32_t faceid);
-
-	void ProcessV_WithClip();
-	
-	// Process Vertex!
-	void ProcessV();
-	void GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DVSOutput *out);
-	void PostProcessV(Arti3DVSOutput *v);
-
-	// Clipping Functions!
-	inline int CalcClipMask(Arti3DVSOutput *v);
-	void ClipTriangle(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVSOutput *v3);
-	void InsertTransformedFace(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVSOutput *v3);
-
-	// Process Rasterization!
-	void ProcessR();
-
-	void RasterizeTile();
-
-	void RenderFragments();
-
-	void RenderTileFragments(Arti3DFragment *frag);
-	void RenderBlockFragments(Arti3DFragment *frag);
-	void RenderMaskedFragments(Arti3DFragment *frag);
-
-	inline void CalcVaryings(Arti3DTransformedFace* f,int x,int y,__m128 &W0,__m128 &W1,__m128 &WDY,__m128 *V0,__m128 *V1,__m128 *VDY);
-	inline void PreInterpolateVaryings(__m128 &W, __m128 *iV, SSE_Float *oV);
-	inline void IncVaryingsAlongY(__m128 &W0, __m128 &W1, __m128 WDY, __m128 *V0, __m128 *V1, __m128 *VDY);
-	inline __m128i ConvertColorFormat(SSE_Color3 &src);
-	inline void UpdateRenderTarget();
-
-	// Process Pixels!
-	// !Not implemented yet!
-	void ProcessP();
-
-
 	
 	// Helper Functions
 	inline int iRound(float f)
@@ -215,18 +169,8 @@ private:
 		//return static_cast<int>(f + 0.5f);
 	}
 
-	// Clear Vertex Caches!
-	void ClearCache();
-
-	void ClearTile();
-
-	void ClearTileMT();
-
 	void ReleaseResource();
-
-	// Compute Varyings Gradient Along Axis X&Y.
-	void ComputeGradient(float C, float di21, float di31, float dx21, float dy21, float dx31, float dy31, a3d::vec2 *g);
-
+	
 private:
 	Arti3DIndexBuffer		*m_pIndexBuffer;
 	Arti3DVertexBuffer		*m_pVertexBuffer;
@@ -235,12 +179,6 @@ private:
 	PArti3DThread			m_pThreads;
 
 	std::vector<std::thread>	m_vThread;
-	
-	Arti3DVertexCache					m_VSOutputCache[g_ciCacheSize];
-
-	std::vector<Arti3DTransformedFace>	faceBuffer;
-
-	std::vector<Arti3_DTile>		m_aTile;
 
 	Arti3DTile					*m_pTiles;
 

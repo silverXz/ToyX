@@ -1,7 +1,6 @@
 #ifndef _TOY_TYPES_H_
 #define _TOY_TYPES_H_
 
-#include <SDL/SDL.h>
 #include <cstdint>
 #include <vector>
 
@@ -11,15 +10,17 @@
 #define FLOAT_CAST(x) static_cast<float>(x)
 
 
-const int g_ciMaxVertexNumPerPatch = 3000;
-const int g_ciMaxClipVertexNumPerPatch = 5 * g_ciMaxVertexNumPerPatch;
-const int g_ciCacheSize = 32;
-const int g_ciMaxVaryingNum = 12;
-const int g_ciMaxClipVertex = 9;
-const int g_ciMaxThreadNum = 10;
-const int ARTI3D_MAX_TEXTURE_UNIT = 8;
-const int g_ciMaxVSRegister = 8;
-const int g_ciMaxFaceNumPerTile = 128;
+const int ARTI3D_MAX_VERTEX_PER_PATCH		= 3000;
+const int ARTI3D_MAX_CLIP_VERTEX_PER_PATCH	= 5 * ARTI3D_MAX_VERTEX_PER_PATCH;
+const int ARTI3D_MAX_VERTEX_SHADER_REGISTER = 8;
+const int ARTI3D_MAX_FACE_PER_TILE			= 128;
+
+const int ARTI3D_MAX_CACHE_SIZE		= 32;
+const int ARTI3D_MAX_VARYING		= 12;
+const int ARTI3D_MAX_CLIP_VERTEX	= 9;
+const int ARTI3D_MAX_THREAD			= 8;
+const int ARTI3D_MAX_TEXTURE_UNIT	= 8;
+
 
 // If you want to change TILE_SIZE, remember to change TILE_SIZE_SHIFT as well.
 // TILE_SIZE = 1 << TILE_SIZE_SHIFT.
@@ -42,23 +43,6 @@ inline uint32_t CvrtToUint32(const a3d::vec4 &color)
 	return ((alpha << 24) | (red << 16) | (green << 8) | blue);
 }
 
-struct Arti3DDeviceParameter
-{
-	uint32_t	iWidth, iHeight;
-	bool		bMultiThread;
-};
-
-
-
-enum Arti3DClipMask{
-	CLIP_POS_X = 1,
-	CLIP_NEG_X = 2,
-	CLIP_POS_Y = 4,
-	CLIP_NEG_Y = 8,
-	CLIP_POS_Z = 16,
-	CLIP_NEG_Z = 32
-};
-
 enum Arti3DMatrixType {
 	ARTI3D_MATRIX_MODEL = 0,
 	ARTI3D_MATRIX_VIEW,
@@ -66,55 +50,10 @@ enum Arti3DMatrixType {
 	ARTI3D_MATRIX_TYPE_NUM
 };
 
-typedef a3d::vec4 ShaderRegister;
-
-struct Arti3DVSInput {
-	ShaderRegister ShaderInputs[g_ciMaxVSRegister];
-};
-
-struct Arti3DVSOutput
-{
-	a3d::vec4 p;						// Vertex position.
-	float varyings[g_ciMaxVaryingNum];	// Other vertex attributes.
-};
-
-struct Arti3DPSParam
-{
-	SSE_Float Varyings[12];
-	SSE_Color3	Output;
-};
-
-struct Arti3DVertexCache
-{
-	uint32_t				tag;			// Cache Index.
-	Arti3DVSOutput			vs_output;		// Cached Information.
-
-	Arti3DVertexCache() : tag(UINT_MAX){}
-
-	inline void Clear()
-	{
-		tag = UINT_MAX;
-	}
-};
-
 struct Arti3DPlane
 {
 	float x, y, z, d;
 };
-
-struct Arti3DTransformedFace
-{
-	float v0x, v0y, v0w;
-	float v0v[g_ciMaxVaryingNum];
-
-	int fp1[2];
-	int fp2[2];
-	int fp3[2];
-
-	a3d::vec2 dw;
-	a3d::vec2 dv[g_ciMaxVaryingNum];
-};
-
 
 enum Arti3DResult {
 	ARTI3D_OK = 0,
@@ -175,50 +114,6 @@ enum Arti3DFormat {
 	ARTI3D_FORMAT_INDEX16,
 	ARTI3D_FORMAT_INDEX32,
 	ARTI3D_FORMAT_INVLAID
-};
-
-
-
-enum Arti3DFragmentCoverage
-{
-	ARTI3D_FC_TILE = 0,	// Fragment Size = Tile.
-	ARTI3D_FC_BLOCK,	// Fragment Size = Block.
-	ARTI3D_FC_MASKED,	// Fragment Size = 4 pixels.
-};
-
-struct Arti3D_TiledFace
-{
-	uint32_t		id;
-	Arti3DTileCoverage	coverageType;
-};
-
-// There are 3 kinds of size of fragment.
-// #1: The size of a tile.
-// #2: The size of a block.
-// #3: The size of 4 pixels.
-struct Arti3DFragment
-{
-	int x, y;		// Top Left Coordinates Of This Fragment.
-	int mask;		// Coverage Mask, Only Valid When "coverType" = ARTI3D_MASKED.
-	int faceID;
-	int threadID;
-	Arti3DFragmentCoverage	coverType;
-};
-
-struct Arti3_DTile
-{
-	std::vector<Arti3D_TiledFace>	aTilizedFace;
-	std::vector<Arti3DFragment>		aFragment;
-	
-	uint32_t			**ppFaceIndexBuffer;
-	uint32_t			*pIndexBufferSize;
-	Arti3DTileCoverage	**ppTileCoverage;
-
-	volatile uint32_t	iFragment;
-
-	
-	int x, y;
-	int w, h;
 };
 
 // Inline Helper Functions

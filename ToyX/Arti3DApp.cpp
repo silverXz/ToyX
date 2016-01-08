@@ -1,14 +1,7 @@
 #include "stdafx.h"
 #include "Arti3DApp.h"
 
-#include "Arti3D_Window.h"
-#include "Arti3D_Device.h"
-#include "Arti3D_RenderTarget.h"
-#include "Arti3D_VertexLayout.h"
-#include "Arti3D_VertexBuffer.h"
-#include "Arti3D_IndexBuffer.h"
-#include "Arti3D_Surface.h"
-#include "Clock.h"
+#include "Arti3D.h"
 
 
 Arti3DApp::Arti3DApp() : m_pDevice(nullptr)
@@ -41,8 +34,6 @@ void Arti3DApp::Run()
 
 		m_pWindow->UpdateSurface();
 	}
-
-	std::this_thread::sleep_for(std::chrono::seconds(1));
 }
 
 Arti3DResult Arti3DApp::Init()
@@ -54,7 +45,7 @@ Arti3DResult Arti3DApp::Init()
 	}
 
 	Arti3DResult a3dr = CreateArti3DWindow(&m_pWindow,
-		"ToyX", 
+		"Arti3DApp", 
 		SDL_WINDOWPOS_UNDEFINED, 
 		SDL_WINDOWPOS_UNDEFINED, 
 		800, 600, 
@@ -229,8 +220,6 @@ void Arti3DApp::SetupScene()
 
 	m_pDevice->SetVertexShader(new SimpleCubeVS(m_pDevice));
 	m_pDevice->SetPixelShader(new SimpleCubePS(m_pDevice));
-
-	CreateCheckboardTexture();
 	
 	m_pDevice->InitializeWorkThreads();
 }
@@ -267,8 +256,8 @@ void Arti3DApp::CreateCheckboardTexture()
 
 	int iBoardLength = 32;
 
-	uint32_t white = 0xFFFFFFFF;
-	uint32_t black = 0x0;
+	uint32_t white = 0x00FF0000;
+	uint32_t black = 0xFF000000;
 
 	uint32_t cc = white;
 

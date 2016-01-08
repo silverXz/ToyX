@@ -102,6 +102,9 @@
     <ClInclude Include="Arti3D_ShaderBase.h">
       <Filter>Arti3D_Core\Header</Filter>
     </ClInclude>
+    <ClInclude Include="Arti3D.h">
+      <Filter>Arti3D_Core\Header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">

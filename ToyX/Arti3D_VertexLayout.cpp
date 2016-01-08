@@ -40,7 +40,7 @@ Arti3DResult Arti3DVertexLayout::Create(uint32_t iAttribute, Arti3DVertexAttribu
 		}
 	}
 
-	if (m_iFloats > g_ciMaxVaryingNum)
+	if (m_iFloats > ARTI3D_MAX_VARYING)
 		return ARTI3D_VARYING_EXCEED;
 
 	return ARTI3D_OK;

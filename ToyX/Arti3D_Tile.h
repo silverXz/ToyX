@@ -6,6 +6,26 @@
 
 #include "Arti3D_Types.h"
 
+enum Arti3DFragmentCoverage
+{
+	ARTI3D_FC_TILE = 0,	// Fragment Size = Tile.
+	ARTI3D_FC_BLOCK,	// Fragment Size = Block.
+	ARTI3D_FC_MASKED,	// Fragment Size = 4 pixels.
+};
+
+// There are 3 kinds of size of fragment.
+// #1: The size of a tile.
+// #2: The size of a block.
+// #3: The size of 4 pixels.
+struct Arti3DFragment
+{
+	int x, y;		// Top Left Coordinates Of This Fragment.
+	int mask;		// Coverage Mask, Only Valid When "coverType" = ARTI3D_MASKED.
+	int faceID;
+	int threadID;
+	Arti3DFragmentCoverage	coverType;
+};
+
 class Arti3DTile
 {
 protected:
