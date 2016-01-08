@@ -8,9 +8,11 @@ class Arti3DWindow;
 
 class Arti3DSurface
 {
+
+
 protected:
 	friend class Arti3DDevice;
-
+	friend class Arti3DPixelShader;
 
 	// Instance Could Only Be Create By Arti3DDevice
 	// @param i_pParent : Pointer To The Arti3DDevice Who Created This Instance.
@@ -39,21 +41,18 @@ public:
 	void*	pGetPixelsDataPtr();
 
 	int iGetBitPerPixel();
-
 	int iGetPitch();
-
 	int iGetWidth() ;
-	
 	int iGetHeight() ;
 
 	Arti3DFormat	fmtGetFormat() const;
 
 private:
-	Arti3DDevice	*m_pParent;
+	Arti3DDevice		*m_pParent;
 
-	SDL_Surface		*m_pSurface;
+	SDL_Surface			*m_pSurface;
 
-	int				m_iBpp;
+	Arti3DPixelFormat	m_pixelFormat;
 };
 
 

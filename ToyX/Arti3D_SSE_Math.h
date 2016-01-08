@@ -191,7 +191,7 @@ public:
 
 SSE_Vec4 operator * (const SSE_Float &f, const SSE_Vec4 &v);
 
-inline __m128 SSE_Clamp(__m128 &val, __m128 fMin, __m128 fMax)
+inline __m128 SSE_Clamp(__m128 val, __m128 fMin, __m128 fMax)
 {
 	return _mm_max_ps(_mm_min_ps(val, fMax), fMin);
 }
@@ -211,6 +211,13 @@ inline SSE_Float SRSqrt(const SSE_Float &f)
 	return SSE_Float(_mm_rsqrt_ps(f.f));
 }
 
+__forceinline __m128i SSE_Multiply_Trunc(__m128i& a,__m128i& b)
+{
+	__m128i tmp1 = _mm_mul_epi32(a, b);
+	__m128i tmp2 = _mm_mul_epi32(_mm_srli_si128(a, 4), _mm_srli_si128(b, 4));
+	return _mm_unpacklo_epi32(_mm_shuffle_epi32(tmp1, _MM_SHUFFLE(0, 0, 2, 0)),
+		_mm_shuffle_epi32(tmp2, _MM_SHUFFLE(0, 0, 2, 0)));
+}
 
 
 

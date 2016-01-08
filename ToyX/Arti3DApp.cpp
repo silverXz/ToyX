@@ -226,8 +226,9 @@ void Arti3DApp::SetupScene()
 	m_pDevice->SetMatrix(ARTI3D_MATRIX_VIEW, a3d::lookAt(a3d::vec3(4.0f, 4.0f, 4.0f), a3d::vec3(0.0f, 0.0f, 0.0f), a3d::vec3(0.0f, 1.0f, 0.0f)));
 	m_pDevice->SetMatrix(ARTI3D_MATRIX_PROJECTION, a3d::perspective(90.0f, (float)m_pWindow->m_iWidth / m_pWindow->m_iHeight, 0.1f, 15.0f));
 	m_pDevice->SetViewport(0, 0, m_pWindow->m_iWidth, m_pWindow->m_iHeight);
-	m_pDevice->SetVertexShader(NewCubeVS);
-	m_pDevice->SetPixelShader(NewCubeFS);
+
+	m_pDevice->SetVertexShader(new SimpleCubeVS(m_pDevice));
+	m_pDevice->SetPixelShader(new SimpleCubePS(m_pDevice));
 
 	CreateCheckboardTexture();
 	
@@ -254,21 +255,24 @@ void Arti3DApp::CreateCheckboardTexture()
 {
 	if (!m_pDevice)
 		return;
-	int iTexWidth = 800;
-	int iTexHeight = 800;
-	Arti3DResult a3dr = m_pDevice->CreateRGBSurface(&m_pDevice->m_pTexture, iTexWidth, iTexHeight, 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
+	int iTexWidth = 320;
+	int iTexHeight = 320;
+
+	PArti3DSurface pSurface = nullptr;
+
+	Arti3DResult a3dr = m_pDevice->CreateRGBSurface(&pSurface, iTexWidth, iTexHeight, 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
 	
 	if (a3dr != ARTI3D_OK)
 		return;
 
 	int iBoardLength = 32;
 
-	uint32_t white = 0xFFFF;
+	uint32_t white = 0xFFFFFFFF;
 	uint32_t black = 0x0;
 
 	uint32_t cc = white;
 
-	uint32_t *pp = (uint32_t*)m_pDevice->m_pTexture->pGetPixelsDataPtr();
+	uint32_t *pp = (uint32_t*)pSurface->pGetPixelsDataPtr();
 
 	for (int i = 0; i < iTexHeight; ++i)
 	{
@@ -280,39 +284,95 @@ void Arti3DApp::CreateCheckboardTexture()
 		}
 	}
 
-	// Let's try to sample.
-	__m128 u = _mm_set_ps(0.1f, 0.3f, 0.7f, 0.9f);
-	__m128 v = _mm_set_ps(0.2f, 0.7f, 0.5f, 0.6f);
+	m_pDevice->AttachTextureUnit(pSurface, 0);
+}
 
-	__m128 tU = _mm_mul_ps(u, _mm_set_ps1(iTexWidth - 1));
-	__m128 tV = _mm_mul_ps(v, _mm_set_ps1(iTexHeight - 1));
+void Arti3DApp::SetupScene2()
+{
+	if (!m_pDevice)
+		return;
+	
+	// Load Obj.
+	const float len = 2.0f;
 
-	__m128i iU = _mm_cvtps_epi32(tU);
-	__m128i iV = _mm_cvtps_epi32(tV);
+	Arti3DVertexLayout *pVertexLayout = nullptr;
+	Arti3DVertexAttributeFormat vaf[] = { ARTI3D_VAF_VECTOR4, ARTI3D_VAF_VECTOR2 };
+	m_pDevice->CreateVertexLayout(&pVertexLayout, 2, vaf);
+	m_pDevice->SetVertexLayout(pVertexLayout);
 
-	int ipitch = m_pDevice->m_pTexture->iGetPitch();
-	int iBytesPerPixel = m_pDevice->m_pTexture->iGetBitPerPixel() / 8;
+	Arti3DVertexBuffer *pVertexBuffer = nullptr;
 
-	auto mm_mul_epu32 = [](__m128i& a, __m128i& b) {
-		__m128i tmp1 = _mm_mul_epi32(a, b);
-		__m128i tmp2 = _mm_mul_epi32(_mm_srli_si128(a, 4), _mm_srli_si128(b, 4));
-		return _mm_unpacklo_epi32(_mm_shuffle_epi32(tmp1,_MM_SHUFFLE(0,0,2,0)),
-			_mm_shuffle_epi32(tmp2,_MM_SHUFFLE(0,0,2,0)));
+	uint32_t iFloat = pVertexLayout->iGetFloats();
+	uint32_t iStride = iFloat * sizeof(float);
+
+	const uint32_t iVertex = 24;
+	m_pDevice->CreateVertexBuffer(&pVertexBuffer, iVertex * iStride);
+
+	// Upload Cube Data To VertexBuffer
+	std::vector<std::vector<float>> xv{
+		{ -len, len, len, 1.0f, 0.0f, 1.0f},	//0,0 - front
+		{ -len, -len,len, 1.0f, 0.0f, 0.0f},	//1,4 - front
+		{ len, -len, len, 1.0f, 1.0f, 0.0f},	//2,5 - front
+		{ len, len,  len, 1.0f, 1.0f, 1.0f},    //3,1 - front
+
+		{ len, len,  len, 1.0f, 0.0f, 1.0f},	//4,1 - right
+		{ len,-len,  len, 1.0f, 0.0f, 0.0f},	//5,5 - right
+		{ len, -len,-len, 1.0f, 1.0f, 0.0f},	//6,6 - right
+		{ len, len, -len, 1.0f, 1.0f, 1.0f},	//7,2 - right
+
+		{ len, len, -len, 1.0f, 0.0f, 1.0f},	//8,2 - back
+		{ len,-len, -len, 1.0f, 0.0f, 0.0f},	//9,6 - back
+		{ -len,-len,-len, 1.0f, 1.0f, 0.0f},	//10,7 - back
+		{ -len,len, -len, 1.0f, 1.0f, 1.0f},	//11,3 - back
+
+		{ -len, len,-len, 1.0f, 0.0f, 1.0f},	//12,3 - right
+		{ -len,-len,-len, 1.0f, 0.0f, 0.0f},	//13,7 - right
+		{ -len,-len, len, 1.0f, 1.0f, 0.0f},	//14,4 - right
+		{ -len, len, len, 1.0f, 1.0f, 1.0f},	//15,0 - right
+
+		{ -len, len,-len, 1.0f, 0.0f, 1.0f},	//16,3 - up
+		{ -len, len, len, 1.0f, 0.0f, 0.0f},	//17,0 - up
+		{ len, len,  len, 1.0f, 1.0f, 0.0f},	//18,1 - up
+		{ len, len, -len, 1.0f, 1.0f, 1.0f},	//19,2 - up
+
+		{ -len,-len, len, 1.0f, 0.0f, 1.0f},	//20,4 - down
+		{ -len,-len,-len, 1.0f, 0.0f, 0.0f},	//21,7 - down
+		{ len,-len, -len, 1.0f, 1.0f, 0.0f},	//22,6 - down
+		{ len, -len, len, 1.0f, 1.0f, 1.0f}		//23,5 - down
 	};
 
-	__m128i fuck1 = mm_mul_epu32(iV, _mm_set1_epi32(ipitch));
-	__m128i fuck2 = mm_mul_epu32(iU, _mm_set1_epi32(iBytesPerPixel));
+	for (int i = 0; i < iVertex; ++i)
+	{
+		void *pDest = nullptr;
+		pVertexBuffer->GetPointer(i * iStride, &pDest);
+		memcpy(pDest, &xv[i][0], iStride);
+	}
 
-	__m128i iSamples = _mm_add_epi32(fuck1,fuck2);
+	m_pDevice->SetVertexBuffer(pVertexBuffer);
 
-	uint8_t *ps = reinterpret_cast<uint8_t*>(pp);
+	Arti3DIndexBuffer *pIndexBuffer = nullptr;
+	m_pDevice->CreateIndexBuffer(&pIndexBuffer, 36 * sizeof(uint32_t), ARTI3D_FORMAT_INDEX32);
+	uint32_t xid[] = { 0, 1, 2, 0, 2, 3,
+		4, 5, 6, 4, 6, 7,
+		8, 9, 10, 8, 10, 11,
+		12, 13, 14, 12, 14, 15,
+		16, 17, 18, 16, 18, 19,
+		20, 21, 22, 20, 22, 23};
 
-	uint32_t sb = _mm_extract_epi32(iSamples, 0);
-	uint32_t color0 = *reinterpret_cast<uint32_t*>(&ps[sb]);
-	uint32_t color1 = *reinterpret_cast<uint32_t*>(&ps[_mm_extract_epi32(iSamples, 1)]);
-	uint32_t color2 = *reinterpret_cast<uint32_t*>(&ps[_mm_extract_epi32(iSamples, 2)]);
-	uint32_t color3 = *reinterpret_cast<uint32_t*>(&ps[_mm_extract_epi32(iSamples, 3)]);
+	void *pDest = nullptr;
+	pIndexBuffer->GetPointer(0, &pDest);
+	memcpy(pDest, xid, sizeof(xid));
 
-	__m128i color = _mm_set_epi32(color3, color2, color1, color0);
-		
+	m_pDevice->SetIndexBuffer(pIndexBuffer);
+
+	m_pDevice->SetMatrix(ARTI3D_MATRIX_VIEW, a3d::lookAt(a3d::vec3(4.0f, 4.0f, 4.0f), a3d::vec3(0.0f, 0.0f, 0.0f), a3d::vec3(0.0f, 1.0f, 0.0f)));
+	m_pDevice->SetMatrix(ARTI3D_MATRIX_PROJECTION, a3d::perspective(90.0f, (float)m_pWindow->m_iWidth / m_pWindow->m_iHeight, 0.1f, 15.0f));
+	m_pDevice->SetViewport(0, 0, m_pWindow->m_iWidth, m_pWindow->m_iHeight);
+
+	m_pDevice->SetVertexShader(new CheckboardCubeVS(m_pDevice));
+	m_pDevice->SetPixelShader(new CheckboardCubePS(m_pDevice));
+
+	CreateCheckboardTexture();
+
+	m_pDevice->InitializeWorkThreads();
 }

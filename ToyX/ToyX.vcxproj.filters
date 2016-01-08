@@ -99,7 +99,7 @@
     <ClInclude Include="Arti3D_SSE_Math.h">
       <Filter>ToyMath</Filter>
     </ClInclude>
-    <ClInclude Include="Arti3D_VertexShader.h">
+    <ClInclude Include="Arti3D_ShaderBase.h">
       <Filter>Arti3D_Core\Header</Filter>
     </ClInclude>
   </ItemGroup>
@@ -146,7 +146,7 @@
     <ClCompile Include="Arti3D_SSE_Math.cpp">
       <Filter>ToyMath</Filter>
     </ClCompile>
-    <ClCompile Include="Arti3D_VertexShader.cpp">
+    <ClCompile Include="Arti3D_ShaderBase.cpp">
       <Filter>Arti3D_Core\Source</Filter>
     </ClCompile>
   </ItemGroup>

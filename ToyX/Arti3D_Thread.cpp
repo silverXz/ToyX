@@ -11,6 +11,7 @@
 #include "Arti3D_RenderTarget.h"
 #include "Arti3D_Surface.h"
 #include "Arti3D_Tile.h"
+#include "Arti3D_ShaderBase.h"
 
 
 Arti3DThread::Arti3DThread() : m_pVertexCache(nullptr),
@@ -181,7 +182,7 @@ void Arti3DThread::GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DVSOutput 
 
 		// Execute vertex shader.
 		// Save results to cache.
-		m_pParent->mRC.pfnVS(&vsinput, &m_pParent->mRC.globals, &m_pVertexCache[iCacheIndex].vs_output);
+		m_pParent->mRC.pVertexShader->Execute(&vsinput, &m_pParent->mRC.globals, &m_pVertexCache[iCacheIndex].vs_output);
 		m_pVertexCache[iCacheIndex].tag = i_iVertexIndex;
 		*o_pVSOutput = m_pVertexCache[iCacheIndex].vs_output;
 	}
@@ -512,7 +513,7 @@ void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
 {
 	for (int i = 0; i < g_ciMaxThreadNum; ++i)
 	{
-		Arti3DThread *tmpThread = &m_pParent->m_pThreads[i];
+		PArti3DThread tmpThread = &m_pParent->m_pThreads[i];
 		
 		for (uint32_t j = 0; j < io_pTile->m_pIndexBufferSize[i]; ++j)
 		{
@@ -722,7 +723,7 @@ void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
 	__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
 	__m128 C1 = _mm_set_ps1(4.0f);
 
-	Arti3DThread *pThread = &m_pParent->m_pThreads[i_pFrag->threadID];
+	PArti3DThread pThread = &m_pParent->m_pThreads[i_pFrag->threadID];
 	Arti3DTransformedFace *f = &pThread->m_pTransformedFace[i_pFrag->faceID];
 
 	Arti3DSurface *pbb = m_pParent->m_pRenderTarget->m_pBackbuffer;
@@ -733,7 +734,7 @@ void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
 	void *depths = pzb->pGetPixelsDataPtr();
 	int wz = pzb->iGetWidth();
 
-	RenderContext &rRC = m_pParent->mRC;
+	PArti3DPixelShader pPixelShader = m_pParent->mRC.pPixelShader;
 	
 	float *depthBuffer = nullptr;
 	uint32_t *colorBuffer = nullptr;
@@ -763,7 +764,7 @@ void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
 			if (_mm_movemask_ps(*(__m128*)&dbmask))
 			{
 				PreInterpolateVaryings(W0, V0, ps_param.Varyings);
-				rRC.pfnPS(&ps_param);
+				pPixelShader->Execute(&ps_param);
 
 				nquad = ConvertColorFormat(ps_param.Output);
 
@@ -787,7 +788,7 @@ void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
 			{
 				PreInterpolateVaryings(W1, V1, ps_param.Varyings);
 
-				rRC.pfnPS(&ps_param);
+				pPixelShader->Execute(&ps_param);
 
 				nquad = ConvertColorFormat(ps_param.Output);
 
@@ -815,7 +816,7 @@ void Arti3DThread::RenderBlockFragments(Arti3DFragment *i_pFrag)
 	__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
 	__m128 C1 = _mm_set_ps1(4.0f);
 
-	Arti3DThread *pThread = &m_pParent->m_pThreads[i_pFrag->threadID];
+	PArti3DThread pThread = &m_pParent->m_pThreads[i_pFrag->threadID];
 	Arti3DTransformedFace *f = &pThread->m_pTransformedFace[i_pFrag->faceID];
 
 	Arti3DSurface *pbb = m_pParent->m_pRenderTarget->m_pBackbuffer;
@@ -826,7 +827,7 @@ void Arti3DThread::RenderBlockFragments(Arti3DFragment *i_pFrag)
 	void *depths = pzb->pGetPixelsDataPtr();
 	int wz = pzb->iGetWidth();
 
-	RenderContext &rRC = m_pParent->mRC;
+	PArti3DPixelShader pPixelShader = m_pParent->mRC.pPixelShader;
 	
 	float *depthBuffer = (float*)depths + wz * i_pFrag->y + i_pFrag->x;
 	uint32_t *colorBuffer = (uint32_t *)pixels + wp * i_pFrag->y + i_pFrag->x;
@@ -851,7 +852,7 @@ void Arti3DThread::RenderBlockFragments(Arti3DFragment *i_pFrag)
 		if (_mm_movemask_ps(*(__m128*)&dbmask))
 		{
 			PreInterpolateVaryings(W0, V0, ps_param.Varyings);
-			rRC.pfnPS(&ps_param);
+			pPixelShader->Execute(&ps_param);
 
 			nquad = ConvertColorFormat(ps_param.Output);
 
@@ -875,7 +876,7 @@ void Arti3DThread::RenderBlockFragments(Arti3DFragment *i_pFrag)
 		{
 			PreInterpolateVaryings(W1, V1, ps_param.Varyings);
 
-			rRC.pfnPS(&ps_param);
+			pPixelShader->Execute(&ps_param);
 
 			nquad = ConvertColorFormat(ps_param.Output);
 
@@ -902,7 +903,7 @@ void Arti3DThread::RenderMaskedFragments(Arti3DFragment *i_pFrag)
 	__m128 C1 = _mm_set_ps1(4.0f);
 	__m128i iMask = _mm_set_epi32(8, 4, 2, 1);
 
-	Arti3DThread *pThread = &m_pParent->m_pThreads[i_pFrag->threadID];
+	PArti3DThread pThread = &m_pParent->m_pThreads[i_pFrag->threadID];
 	Arti3DTransformedFace *f = &pThread->m_pTransformedFace[i_pFrag->faceID];
 
 	Arti3DSurface *pbb = m_pParent->m_pRenderTarget->m_pBackbuffer;
@@ -913,7 +914,7 @@ void Arti3DThread::RenderMaskedFragments(Arti3DFragment *i_pFrag)
 	void *depths = pzb->pGetPixelsDataPtr();
 	int wz = pzb->iGetWidth();
 
-	RenderContext &rRC = m_pParent->mRC;
+	PArti3DPixelShader pPixelShader = m_pParent->mRC.pPixelShader;
 
 	float *depthBuffer = (float*)depths + wz * i_pFrag->y + i_pFrag->x;
 	uint32_t *colorBuffer = (uint32_t *)pixels + wp * i_pFrag->y + i_pFrag->x;
@@ -940,7 +941,7 @@ void Arti3DThread::RenderMaskedFragments(Arti3DFragment *i_pFrag)
 	if (_mm_movemask_ps(*(__m128*)&dbmask))
 	{
 		PreInterpolateVaryings(W0, V0, ps_param.Varyings);
-		rRC.pfnPS(&ps_param);
+		pPixelShader->Execute(&ps_param);
 
 		nquad = ConvertColorFormat(ps_param.Output);
 
@@ -972,12 +973,18 @@ void Arti3DThread::CalcVaryings(Arti3DTransformedFace* f, int x, int y, __m128 &
 
 	for (int i = 0; i < g_ciMaxVaryingNum; ++i)
 	{
-		base = _mm_set_ps1(f->v0v[i] + xStep * f->dv[i].x + yStep * f->dv[i].y);
-		dx = _mm_set_ps1(f->dv[i].x);
+		float dvx = f->dv[i].x;
+		float dvy = f->dv[i].y;
+
+		VDY[i] = _mm_set1_ps(dvy);
+		
+		base = _mm_set_ps1(f->v0v[i] + xStep * dvx + yStep * dvy);
+		
+		dx = _mm_set_ps1(dvx);
 
 		V0[i] = _mm_add_ps(base, _mm_mul_ps(dx, C1));
 		V1[i] = _mm_add_ps(V0[i], _mm_mul_ps(dx, C2));
-		VDY[i] = _mm_set1_ps(f->dv[i].y);
+
 	}
 }
 

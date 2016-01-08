@@ -11,10 +11,20 @@
 #include "Arti3D_ForwardDecl.h"
 #include "Arti3D_RenderTarget.h"
 
-
 class Arti3DDevice
 {
+
+	struct RenderContext
+	{
+		PArti3DVertexShader	pVertexShader;
+		PArti3DPixelShader	pPixelShader;
+		Arti3DShaderUniform	globals;
+		PArti3DSurface		pSurfaces[ARTI3D_MAX_TEXTURE_UNIT];
+	};
+
+
 	friend class Arti3DThread;
+	friend class Arti3DPixelShader;
 	friend class Arti3DApp;
 
 public:
@@ -104,14 +114,16 @@ public:
 	// @param pIndexBuffer : Pointer To The Source Index Buffer.
 	Arti3DResult SetIndexBuffer(Arti3DIndexBuffer *pIndexBuffer);
 
-	void SetVertexShader(Arti3DVertexShader pfnVS)
+	Arti3DResult AttachTextureUnit(PArti3DSurface pSurface, int iTexUint);
+
+	void SetVertexShader(PArti3DVertexShader pVertexShader)
 	{
-		mRC.pfnVS = pfnVS;
+		mRC.pVertexShader = pVertexShader;
 	}
 
-	void SetPixelShader(Arti3DPixelShader pfnPS)
+	void SetPixelShader(PArti3DPixelShader pPixelShader)
 	{
-		mRC.pfnPS = pfnPS;
+		mRC.pPixelShader = pPixelShader;
 	}
 
 	// Render State Related
@@ -220,7 +232,7 @@ private:
 	Arti3DVertexBuffer		*m_pVertexBuffer;
 	Arti3DVertexLayout		*m_pVertexLayout;
 
-	Arti3DThread			*m_pThreads;
+	PArti3DThread			m_pThreads;
 
 	std::vector<std::thread>	m_vThread;
 	
@@ -250,8 +262,6 @@ private:
 	std::ofstream		dFile;
 
 	Arti3DRenderTarget			*m_pRenderTarget;
-
-	Arti3DSurface				*m_pTexture;
 
 	// Render State
 	RenderContext				mRC;

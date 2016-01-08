@@ -1,11 +1,12 @@
 #ifndef _TOY_TYPES_H_
 #define _TOY_TYPES_H_
 
-#include "Arti3D_Math.h"
 #include <SDL/SDL.h>
 #include <cstdint>
 #include <vector>
-#include "Shader.h"
+
+#include "Arti3D_Math.h"
+#include "Arti3D_SSE_Math.h"
 
 #define FLOAT_CAST(x) static_cast<float>(x)
 
@@ -16,7 +17,7 @@ const int g_ciCacheSize = 32;
 const int g_ciMaxVaryingNum = 12;
 const int g_ciMaxClipVertex = 9;
 const int g_ciMaxThreadNum = 10;
-const int g_ciMaxTextureUnit = 16;
+const int ARTI3D_MAX_TEXTURE_UNIT = 8;
 const int g_ciMaxVSRegister = 8;
 const int g_ciMaxFaceNumPerTile = 128;
 
@@ -77,6 +78,12 @@ struct Arti3DVSOutput
 	float varyings[g_ciMaxVaryingNum];	// Other vertex attributes.
 };
 
+struct Arti3DPSParam
+{
+	SSE_Float Varyings[12];
+	SSE_Color3	Output;
+};
+
 struct Arti3DVertexCache
 {
 	uint32_t				tag;			// Cache Index.
@@ -131,13 +138,6 @@ struct Arti3DShaderUniform
 	a3d::vec4 viewport;
 };
 
-struct RenderContext
-{
-	Arti3DVertexShader	pfnVS;
-	Arti3DPixelShader	pfnPS;
-	Arti3DShaderUniform	globals;
-};
-
 enum Arti3DVertexAttributeFormat
 {
 	ARTI3D_VAF_FLOAT32,
@@ -152,6 +152,19 @@ enum Arti3DTileCoverage {
 	ARTI3D_TC_ALL
 };
 
+struct Arti3DPixelFormat {
+	uint32_t	BitsPerPixel;
+	uint32_t	BytesPerPixel;
+	uint32_t	RMask;
+	uint32_t	GMask;
+	uint32_t	BMask;
+	uint32_t	AMask;
+	uint8_t		Rshift;
+	uint8_t		Gshift;
+	uint8_t		Bshift;
+	uint8_t		Ashift;
+};
+
 enum Arti3DFormat {
 	ARTI3D_FORMAT_R32F,
 	ARTI3D_FORMAT_RG88,
@@ -163,6 +176,8 @@ enum Arti3DFormat {
 	ARTI3D_FORMAT_INDEX32,
 	ARTI3D_FORMAT_INVLAID
 };
+
+
 
 enum Arti3DFragmentCoverage
 {

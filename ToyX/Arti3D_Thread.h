@@ -12,7 +12,11 @@ protected:
 	friend class Arti3DDevice;
 
 	Arti3DThread();
+
+public:
 	~Arti3DThread();
+
+protected:
 
 	// Create A New Thread.
 	// @param pParent : Parent Who Created This Thread.

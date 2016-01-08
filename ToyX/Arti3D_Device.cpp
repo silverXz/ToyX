@@ -18,6 +18,7 @@
 #include "Arti3D_Thread.h"
 #include "Arti3D_Tile.h"
 #include "Arti3D_Surface.h"
+#include "Arti3D_ShaderBase.h"
 
 
 using namespace a3d;
@@ -25,11 +26,10 @@ using namespace a3d;
 Arti3DDevice::Arti3DDevice() : m_pIndexBuffer(nullptr),
 	m_pVertexBuffer(nullptr),
 	m_pVertexLayout(nullptr),
-	m_pThreads(nullptr),
 	m_pTiles(nullptr),
 	m_pRenderTarget(nullptr),
-	m_pTexture(nullptr),
 	m_pJobQueue(nullptr),
+	m_pThreads(nullptr),
 	m_iJobStart(0),
 	m_iJobEnd(0),
 	m_iJobStart2(0),
@@ -46,11 +46,15 @@ Arti3DDevice::~Arti3DDevice()
 
 	StopAllThreads();
 
+	for (int i = 0; i < ARTI3D_MAX_TEXTURE_UNIT; ++i)
+		SAFE_DELETE(mRC.pSurfaces[i]);
+
+	SAFE_DELETE(mRC.pPixelShader);
+	SAFE_DELETE(mRC.pVertexShader);
 	SAFE_DELETE(m_pIndexBuffer);
 	SAFE_DELETE(m_pVertexBuffer);
 	SAFE_DELETE(m_pVertexLayout);
 	SAFE_DELETE(m_pRenderTarget);
-	SAFE_DELETE(m_pTexture);
 	SAFE_DELETE_ARRAY(m_pThreads);
 	SAFE_DELETE_ARRAY(m_pTiles);
 	SAFE_DELETE_ARRAY(m_pJobQueue);
@@ -67,6 +71,8 @@ Arti3DResult Arti3DDevice::InitializeDevice(Arti3DDeviceParameter deviceParam)
 
 	InitTile();
 	CreateTilesAndJobQueue();
+
+	memset(&mRC, 0, sizeof(RenderContext));
 
 	return ARTI3D_OK;
 }
@@ -291,7 +297,7 @@ void Arti3DDevice::GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DVSOutput 
 
 		// Try Something new :)
 
- 		mRC.pfnVS(&vsinput, &mRC.globals, &m_VSOutputCache[iCacheIndex].vs_output);
+ 		mRC.pVertexShader->Execute(&vsinput, &mRC.globals, &m_VSOutputCache[iCacheIndex].vs_output);
  		m_VSOutputCache[iCacheIndex].tag = i_iVertexIndex;
  		*out = m_VSOutputCache[iCacheIndex].vs_output;
 	}
@@ -688,6 +694,8 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 
 			float *depthBuffer = pzb ? (float*)pzb->pGetPixelsDataPtr() + y * pzb->iGetWidth() + x : nullptr;
 			uint32_t *colorBuffer = (uint32_t*)pbb->pGetPixelsDataPtr()+ y * pbb->iGetWidth() + x;
+
+			PArti3DPixelShader pPixelShader = mRC.pPixelShader;
 			
 			// Totally Inside, Handle blockSize * blockSize PIxels
 			if (a1 == 0xF && a2 == 0xF && a3 == 0xF)
@@ -706,6 +714,7 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 				for (int iy = 0; iy < blockSize; iy++)
 				{
 					SSE_ALIGN Arti3DPSParam parm;
+					memset(&parm, 0, sizeof(Arti3DPSParam));
 
 					__m128 dbquad;
 					__m128i oquad, nquad, dbmask;
@@ -728,7 +737,7 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 						PreInterpolateVaryings(W0, V0, parm.Varyings);
 
 
-						mRC.pfnPS(&parm);
+						mRC.pPixelShader->Execute(&parm);
 
 						nquad = ConvertColorFormat(parm.Output);
 
@@ -756,7 +765,7 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 					{
 						PreInterpolateVaryings(W1, V1, parm.Varyings);
 
-						mRC.pfnPS(&parm);
+						pPixelShader->Execute(&parm);
 
 						nquad = ConvertColorFormat(parm.Output);
 
@@ -818,6 +827,7 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 				__m128i cMask = _mm_and_si128(_mm_and_si128(msk1, msk2), msk3);
 			
 				SSE_ALIGN Arti3DPSParam parm;
+				memset(&parm, 0, sizeof(Arti3DPSParam));
 
 				__m128 dbquad;
 				__m128i oquad, nquad, dbmask;
@@ -845,7 +855,7 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 						parm.Varyings[f + 1] = _mm_mul_ps(w, V0[f + 1]);
 					}
 
-					mRC.pfnPS(&parm);
+					pPixelShader->Execute(&parm);
 
 					nquad = ConvertColorFormat(parm.Output);
 
@@ -889,7 +899,7 @@ void Arti3DDevice::RasterizeTriangle_SIMD(Arti3DTransformedFace *f)
 						parm.Varyings[f + 1] = _mm_mul_ps(w, V1[f + 1]);
 					}
 
-					mRC.pfnPS(&parm);
+					pPixelShader->Execute(&parm);
 
 					nquad = ConvertColorFormat(parm.Output);
 
@@ -1328,6 +1338,8 @@ void Arti3DDevice::RenderTileFragments(Arti3DFragment *frag)
 
 	Arti3DSurface *pbb = m_pRenderTarget->m_pBackbuffer;
 	Arti3DSurface *pzb = m_pRenderTarget->m_pZBuffer;
+
+	PArti3DPixelShader pPixelShader = mRC.pPixelShader;
 	
 	for (int x = frag->x; x < frag->x + g_ciTileSize; x += g_ciBlockSize)
 	{
@@ -1337,7 +1349,9 @@ void Arti3DDevice::RenderTileFragments(Arti3DFragment *frag)
 		for (int y = frag->y; y < frag->y + g_ciTileSize; ++y)
 		{
 			CalcVaryings(f, x, y, W0, W1, WDY, V0, V1, VDY);
+
 			SSE_ALIGN Arti3DPSParam ps_param;
+			memset(&ps_param, 0, sizeof(Arti3DPSParam));
 
 			__m128	dbquad;
 			__m128i dbmask, oquad, nquad;
@@ -1354,7 +1368,7 @@ void Arti3DDevice::RenderTileFragments(Arti3DFragment *frag)
 			if (_mm_movemask_ps(*(__m128*)&dbmask))
 			{
 				PreInterpolateVaryings(W0, V0, ps_param.Varyings);
-				mRC.pfnPS(&ps_param);
+				pPixelShader->Execute(&ps_param);
 
 				nquad = ConvertColorFormat(ps_param.Output);
 
@@ -1378,7 +1392,7 @@ void Arti3DDevice::RenderTileFragments(Arti3DFragment *frag)
 			{
 				PreInterpolateVaryings(W1, V1, ps_param.Varyings);
 
-				mRC.pfnPS(&ps_param);
+				pPixelShader->Execute(&ps_param);
 
 				nquad = ConvertColorFormat(ps_param.Output);
 
@@ -1410,13 +1424,17 @@ void Arti3DDevice::RenderBlockFragments(Arti3DFragment *frag)
 	Arti3DSurface *pbb = m_pRenderTarget->m_pBackbuffer;
 	Arti3DSurface *pzb = m_pRenderTarget->m_pZBuffer;
 
+	PArti3DPixelShader pPixelShader = mRC.pPixelShader;
+
 	float *depthBuffer = (float*)pzb->pGetPixelsDataPtr()+ pzb->iGetWidth() * frag->y + frag->x;
 	uint32_t *colorBuffer = (uint32_t *)pbb->pGetPixelsDataPtr() + pbb->iGetWidth() * frag->y + frag->x;
 
 	for (int y = frag->y; y < frag->y + g_ciBlockSize; ++y)
 	{
 		CalcVaryings(f, frag->x, y, W0, W1, WDY, V0, V1, VDY);
+
 		SSE_ALIGN Arti3DPSParam ps_param;
+		memset(&ps_param, 0, sizeof(Arti3DPSParam));
 
 		__m128	dbquad;
 		__m128i dbmask, oquad, nquad;
@@ -1433,7 +1451,7 @@ void Arti3DDevice::RenderBlockFragments(Arti3DFragment *frag)
 		if (_mm_movemask_ps(*(__m128*)&dbmask))
 		{
 			PreInterpolateVaryings(W0, V0, ps_param.Varyings);
-			mRC.pfnPS(&ps_param);
+			pPixelShader->Execute(&ps_param);
 			
 			nquad = ConvertColorFormat(ps_param.Output);
 
@@ -1456,8 +1474,7 @@ void Arti3DDevice::RenderBlockFragments(Arti3DFragment *frag)
 		if (_mm_movemask_ps(*(__m128*)&dbmask))
 		{
 			PreInterpolateVaryings(W1, V1, ps_param.Varyings);
-
-			mRC.pfnPS(&ps_param);
+			pPixelShader->Execute(&ps_param);
 
 			nquad = ConvertColorFormat(ps_param.Output);
 
@@ -1512,6 +1529,8 @@ void Arti3DDevice::RenderMaskedFragments(Arti3DFragment *frag)
 
 	Arti3DSurface *pbb = m_pRenderTarget->m_pBackbuffer;
 	Arti3DSurface *pzb = m_pRenderTarget->m_pZBuffer;
+
+	PArti3DPixelShader pPixelShader = mRC.pPixelShader;
 	
 
 	float *depthBuffer = (float*)pzb->pGetPixelsDataPtr() + pzb->iGetWidth() * frag->y + frag->x;
@@ -1520,6 +1539,7 @@ void Arti3DDevice::RenderMaskedFragments(Arti3DFragment *frag)
 	CalcVaryings(f, frag->x, frag->y, W0, W1, WDY, V0, V1, VDY);
 
 	SSE_ALIGN Arti3DPSParam ps_param;
+	memset(&ps_param, 0, sizeof(Arti3DPSParam));
 	
 	__m128	dbquad;
 	__m128i cbmask,dbmask, oquad, nquad;
@@ -1539,7 +1559,7 @@ void Arti3DDevice::RenderMaskedFragments(Arti3DFragment *frag)
 	if (_mm_movemask_ps(*(__m128*)&dbmask))
 	{
 		PreInterpolateVaryings(W0, V0, ps_param.Varyings);
-		mRC.pfnPS(&ps_param);
+		pPixelShader->Execute(&ps_param);
 
 		nquad = ConvertColorFormat(ps_param.Output);
 
@@ -1631,11 +1651,10 @@ Arti3DResult Arti3DDevice::SetVertexLayout(Arti3DVertexLayout *pLayout)
 Arti3DResult Arti3DDevice::CreateWorkerThreads()
 {
 	m_pThreads = new Arti3DThread[g_ciMaxThreadNum];
-	if (!m_pThreads)
-		return ARTI3D_OUT_OF_MEMORY;
-	for (int i = 0; i < g_ciMaxThreadNum; ++i)
-		m_pThreads[i].Create(this,i); 
 
+	for (int i = 0; i < g_ciMaxThreadNum; ++i)
+		m_pThreads[i].Create(this, i);
+	
 	m_iStage = 1;
 
 	for (int i = 0; i < g_ciMaxThreadNum; ++i)
@@ -1739,8 +1758,7 @@ void Arti3DDevice::StopAllThreads()
 void Arti3DDevice::DrawMesh_MT()
 {
 	// Clear Buffers, Local Or Global.
-
-
+	
 	// Activate all threads
 	// !!!!! Note !!!!!
 	// It's Important That The Following Line Comes First! 
@@ -1853,6 +1871,16 @@ Arti3DResult Arti3DDevice::CreateSurfaceFromWindow(Arti3DSurface **o_pSurface,Ar
 		return ARTI3D_INVALID_PARAMETER;
 	*o_pSurface = new Arti3DSurface(this);
 	(*o_pSurface)->Create(pWindow);
+	return ARTI3D_OK;
+}
+
+Arti3DResult Arti3DDevice::AttachTextureUnit(PArti3DSurface pSurface, int iTexUint)
+{
+	if ( !pSurface || iTexUint >= ARTI3D_MAX_TEXTURE_UNIT || iTexUint < 0)
+		return ARTI3D_INVALID_PARAMETER;
+
+	mRC.pSurfaces[iTexUint] = pSurface;
+
 	return ARTI3D_OK;
 }
 

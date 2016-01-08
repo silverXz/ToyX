@@ -24,6 +24,8 @@ public:
 	
 	void SetupScene();
 
+	void SetupScene2();
+
 	void CalculateFPS();
 
 	static void HandleEvent(const SDL_Event& event, Arti3DApp *pApp);
