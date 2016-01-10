@@ -13,6 +13,12 @@ Arti3DVertexShader::~Arti3DVertexShader()
 
 }
 
+void Arti3DVertexShader::Use()
+{
+	assert(m_pDevice);
+	m_pDevice->SetVertexShader(this);
+}
+
 Arti3DPixelShader::Arti3DPixelShader(Arti3DDevice *pDevice) : m_pDevice(pDevice)
 {
 
@@ -21,6 +27,12 @@ Arti3DPixelShader::Arti3DPixelShader(Arti3DDevice *pDevice) : m_pDevice(pDevice)
 Arti3DPixelShader::~Arti3DPixelShader()
 {
 
+}
+
+void Arti3DPixelShader::Use()
+{
+	assert(m_pDevice);
+	m_pDevice->SetPixelShader(this);
 }
 
 SSE_Color3 Arti3DPixelShader::SampleTexture(int iTexUint, SSE_Float& fU, SSE_Float& fV)

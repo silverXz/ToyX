@@ -21,14 +21,16 @@
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-	Arti3DApp a3dApp;
+	Arti3DApp *a3dApp = new Arti3DApp();
 		
-	if (ARTI3D_OK != a3dApp.Init())
+	if (ARTI3D_OK != a3dApp->Init())
 		return -1;
 
-	a3dApp.SetupScene2();
+	a3dApp->SetupScene2();
 
-	a3dApp.Run();
+	a3dApp->Run();
+
+	delete a3dApp;
 
 	_CrtDumpMemoryLeaks();
 

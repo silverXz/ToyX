@@ -14,7 +14,7 @@ protected:
 	// @param i_pParent : Pointer To The Arti3DDevice Who Created This Instance.
 	Arti3DSurface(Arti3DDevice *i_pParent);
 
-	~Arti3DSurface();
+
 
 	// Instance Could Only Be Create By Arti3DDevice
 	// @param bpp : bits per pixel
@@ -32,7 +32,12 @@ protected:
 	Arti3DResult Create(Arti3DWindow *pWindow);
 
 public:
+	~Arti3DSurface();
+
 	Arti3DResult Clear();
+
+	void Lock();
+	void UnLock();
 
 	void*	pGetPixelsDataPtr();
 

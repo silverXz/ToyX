@@ -7,7 +7,6 @@
 #include "Arti3D_Device.h"
 #include "Arti3D_IndexBuffer.h"
 #include "Arti3D_VertexBuffer.h"
-#include "Arti3D_VertexLayout.h"
 #include "Arti3D_RenderTarget.h"
 #include "Arti3D_Surface.h"
 #include "Arti3D_Tile.h"
@@ -156,16 +155,19 @@ void Arti3DThread::GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DVSOutput 
 		Arti3DVSInput vsinput;
 
 		void *pSrc = nullptr;
-		m_pParent->m_pVertexBuffer->GetPointer(m_pParent->m_pVertexLayout->iGetFloats() * sizeof(float) * i_iVertexIndex, &pSrc);
+		Arti3DVertexBuffer *pVertexBuffer = m_pParent->m_pVertexBuffer;
+		const Arti3DVertexLayout *pVertexLayout = pVertexBuffer->pGetLayout();
+
+		pVertexBuffer->GetPointer(pVertexBuffer->iGetStride() * i_iVertexIndex, &pSrc);
 		float *pV = (float*)pSrc;
 
 		uint32_t iAttributeNum = 0;
-		m_pParent->m_pVertexLayout->iGetAttributeNum(&iAttributeNum);
+		pVertexLayout->iGetAttributeNum(&iAttributeNum);
 
 		Arti3DVertexAttributeFormat fmtVertexAttribute;
 		for (uint32_t i = 0; i < iAttributeNum; ++i)
 		{
-			m_pParent->m_pVertexLayout->fmtGetVertexAttributeFormate(i, &fmtVertexAttribute);
+			pVertexLayout->fmtGetVertexAttributeFormate(i, &fmtVertexAttribute);
 			switch (fmtVertexAttribute)
 			{
 			case ARTI3D_VAF_VECTOR4:

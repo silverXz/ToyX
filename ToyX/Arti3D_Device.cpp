@@ -12,7 +12,6 @@
 
 #include "Arti3DApp.h"
 #include "Arti3D_RenderTarget.h"
-#include "Arti3D_VertexLayout.h"
 #include "Arti3D_VertexBuffer.h"
 #include "Arti3D_IndexBuffer.h"
 #include "Arti3D_Thread.h"
@@ -25,7 +24,6 @@ using namespace a3d;
 
 Arti3DDevice::Arti3DDevice() : m_pIndexBuffer(nullptr),
 	m_pVertexBuffer(nullptr),
-	m_pVertexLayout(nullptr),
 	m_pTiles(nullptr),
 	m_pRenderTarget(nullptr),
 	m_pJobQueue(nullptr),
@@ -49,11 +47,6 @@ Arti3DDevice::~Arti3DDevice()
 	for (int i = 0; i < ARTI3D_MAX_TEXTURE_UNIT; ++i)
 		SAFE_DELETE(mRC.pSurfaces[i]);
 
-	SAFE_DELETE(mRC.pPixelShader);
-	SAFE_DELETE(mRC.pVertexShader);
-	SAFE_DELETE(m_pIndexBuffer);
-	SAFE_DELETE(m_pVertexBuffer);
-	SAFE_DELETE(m_pVertexLayout);
 	SAFE_DELETE(m_pRenderTarget);
 	SAFE_DELETE_ARRAY(m_pThreads);
 	SAFE_DELETE_ARRAY(m_pTiles);
@@ -187,9 +180,9 @@ void Arti3DDevice::SetPixelColor(int x, int y, uint32_t c)
 	if (!pbb || x >= pbb->iGetWidth() || y >= pbb->iGetHeight())	
 		return;
 
-	void *pp = pbb->pGetPixelsDataPtr();
+	uint8_t *pTargetRow = reinterpret_cast<uint8_t*>(pbb->pGetPixelsDataPtr()) + pbb->iGetPitch();
 
-	((uint32_t*)pp)[y * pbb->iGetWidth() + x] = c;
+	((uint32_t*)pTargetRow)[x] = c;
 }
 
 void Arti3DDevice::Draw3DSolidTriangle(const a3d::vec4& p1, const a3d::vec4& p2, const a3d::vec4& p3, const a3d::vec4& c)
@@ -239,7 +232,7 @@ void Arti3DDevice::Begin()
 		return;
 	}
 
-	SDL_LockSurface(pbb->m_pSurface);
+	pbb->Lock();
 
 }
 
@@ -253,7 +246,7 @@ void Arti3DDevice::End()
 		return;
 	}
 
-	SDL_UnlockSurface(pbb->m_pSurface);
+	pbb->UnLock();
 }
 
 void Arti3DDevice::SetRenderTarget(Arti3DRenderTarget *pRenderTarget)
@@ -297,6 +290,7 @@ Arti3DResult Arti3DDevice::CreateTilesAndJobQueue()
 	{
 		for (int x = 0; x < m_iTileX; ++x)
 		{
+			// Calculate top-left corner for this tile.
 			uint32_t iX = x * g_ciTileSize;
 			uint32_t iY = y * g_ciTileSize;
 
@@ -331,16 +325,6 @@ Arti3DResult Arti3DDevice::CreateTilesAndJobQueue()
 	m_iJobStart = 0;
 	m_iJobEnd = 0;
 
-	return ARTI3D_OK;
-}
-
-Arti3DResult Arti3DDevice::SetVertexLayout(Arti3DVertexLayout *pLayout)
-{
-	if (!pLayout)
-		return ARTI3D_INVALID_PARAMETER;
-	
-	m_pVertexLayout = pLayout;
-	
 	return ARTI3D_OK;
 }
 
@@ -389,9 +373,9 @@ Arti3DResult Arti3DDevice::CreateVertexLayout(Arti3DVertexLayout **o_pVertexLayo
 	return ARTI3D_OK;
 }
 
-Arti3DResult Arti3DDevice::CreateVertexBuffer(Arti3DVertexBuffer **o_pVertexBuffer, uint32_t iLength)
+Arti3DResult Arti3DDevice::CreateVertexBuffer(Arti3DVertexBuffer **o_pVertexBuffer, Arti3DVertexLayout* o_pVertexLayout, uint32_t iVertexCount)
 {
-	if (!o_pVertexBuffer || iLength == 0)
+	if (!o_pVertexBuffer || iVertexCount == 0)
 		return ARTI3D_INVALID_PARAMETER;
 
 	*o_pVertexBuffer = new Arti3DVertexBuffer();
@@ -399,12 +383,12 @@ Arti3DResult Arti3DDevice::CreateVertexBuffer(Arti3DVertexBuffer **o_pVertexBuff
 	if (!*o_pVertexBuffer)
 		return ARTI3D_OUT_OF_MEMORY;
 
-	(*o_pVertexBuffer)->Create(iLength);
+	(*o_pVertexBuffer)->Create(o_pVertexLayout, iVertexCount);
 
 	return ARTI3D_OK;
 }
 
-Arti3DResult Arti3DDevice::SetVertexBuffer(Arti3DVertexBuffer *pVertexBuffer)
+Arti3DResult Arti3DDevice::BindVertexBuffer(Arti3DVertexBuffer *pVertexBuffer)
 {
 	if (!pVertexBuffer)
 		return ARTI3D_NULL_PARAMETER;
@@ -430,7 +414,7 @@ Arti3DResult Arti3DDevice::CreateIndexBuffer(Arti3DIndexBuffer **o_pIndexBuffer,
 	return ARTI3D_OK;
 }
 
-Arti3DResult Arti3DDevice::SetIndexBuffer(Arti3DIndexBuffer *pIndexBuffer)
+Arti3DResult Arti3DDevice::BindIndexBuffer(Arti3DIndexBuffer *pIndexBuffer)
 {
 	if (!pIndexBuffer)
 		return ARTI3D_NULL_PARAMETER;
@@ -467,7 +451,7 @@ void Arti3DDevice::DrawMesh_MT()
 	ClearTilesAndJobQueue();
 }
 
-Arti3DResult Arti3DDevice::InitializeWorkThreads()
+Arti3DResult Arti3DDevice::DistributeThreadWorkload()
 {
 	// Allocate Work Load For Every Threads.
 	uint32_t iNumTriangle = m_pIndexBuffer->iGetIndexNum() / 3;

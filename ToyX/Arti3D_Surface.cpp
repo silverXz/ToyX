@@ -66,6 +66,16 @@ Arti3DResult Arti3DSurface::Create(Arti3DWindow *pWindow)
 	return ARTI3D_OK;
 }
 
+void Arti3DSurface::Lock()
+{
+	SDL_LockSurface(m_pSurface);
+}
+
+void Arti3DSurface::UnLock()
+{
+	SDL_UnlockSurface(m_pSurface);
+}
+
 void* Arti3DSurface::pGetPixelsDataPtr()
 {
 	return m_pSurface->pixels;

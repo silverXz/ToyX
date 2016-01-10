@@ -37,6 +37,9 @@
     <Filter Include="Arti3D\Header">
       <UniqueIdentifier>{150ec215-46cc-4105-8480-01af2badb5f9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Arti3D_Resource">
+      <UniqueIdentifier>{c7b012e1-6f23-406f-b9ae-2f0a5251852a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Text Include="..\..\..\..\SilverX%27s Space\VS2013 Projects\ToyX\ToyX\ReadMe.txt" />
@@ -72,9 +75,6 @@
     <ClInclude Include="Arti3D_VertexBuffer.h">
       <Filter>Arti3D_Core\Header</Filter>
     </ClInclude>
-    <ClInclude Include="Arti3D_VertexLayout.h">
-      <Filter>Arti3D_Core\Header</Filter>
-    </ClInclude>
     <ClInclude Include="Shader.h">
       <Filter>Arti3D_Core\Header</Filter>
     </ClInclude>
@@ -105,6 +105,9 @@
     <ClInclude Include="Arti3D.h">
       <Filter>Arti3D_Core\Header</Filter>
     </ClInclude>
+    <ClInclude Include="Arti3D_Mesh.h">
+      <Filter>Arti3D_Resource</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -120,9 +123,6 @@
       <Filter>Arti3D_Core\Source</Filter>
     </ClCompile>
     <ClCompile Include="Arti3D_VertexBuffer.cpp">
-      <Filter>Arti3D_Core\Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Arti3D_VertexLayout.cpp">
       <Filter>Arti3D_Core\Source</Filter>
     </ClCompile>
     <ClCompile Include="Shader.cpp">
@@ -151,6 +151,9 @@
     </ClCompile>
     <ClCompile Include="Arti3D_ShaderBase.cpp">
       <Filter>Arti3D_Core\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Arti3D_Mesh.cpp">
+      <Filter>Arti3D_Resource</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

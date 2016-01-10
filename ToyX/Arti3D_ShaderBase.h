@@ -35,12 +35,13 @@ struct Arti3DVertexCache
 // Base class for vertex shader.
 class Arti3DVertexShader
 {
-protected:
-	Arti3DVertexShader(Arti3DDevice *pDevice);
 public:
+	Arti3DVertexShader(Arti3DDevice *pDevice);
 	virtual ~Arti3DVertexShader();
+
 public:
 	virtual void Execute(Arti3DVSInput *i_pVSInput, Arti3DShaderUniform* i_pUniform, Arti3DVSOutput *o_pVSOutput) = 0;
+	void Use();
 protected:
 	Arti3DDevice		*m_pDevice;
 };
@@ -56,13 +57,13 @@ struct Arti3DPSParam
 // Base class for pixel/fragment shaders.
 class Arti3DPixelShader
 {
-protected:
-	Arti3DPixelShader(Arti3DDevice *pDevice);
 public:
+	Arti3DPixelShader(Arti3DDevice *pDevice);
 	virtual ~Arti3DPixelShader();
 
 public:
 	virtual void Execute(Arti3DPSParam *io_pPSParam) = 0;
+	void Use();
 
 protected:
 	SSE_Color3	SampleTexture(int iTexUint, SSE_Float& fU, SSE_Float& fV);

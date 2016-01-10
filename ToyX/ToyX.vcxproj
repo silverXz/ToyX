@@ -89,12 +89,12 @@
     <ClInclude Include="Arti3DApp.h" />
     <ClInclude Include="Arti3D_ForwardDecl.h" />
     <ClInclude Include="Arti3D_IndexBuffer.h" />
+    <ClInclude Include="Arti3D_Mesh.h" />
     <ClInclude Include="Arti3D_RenderTarget.h" />
     <ClInclude Include="Arti3D_Surface.h" />
     <ClInclude Include="Arti3D_Thread.h" />
     <ClInclude Include="Arti3D_Tile.h" />
     <ClInclude Include="Arti3D_VertexBuffer.h" />
-    <ClInclude Include="Arti3D_VertexLayout.h" />
     <ClInclude Include="Arti3D_ShaderBase.h" />
     <ClInclude Include="Arti3D_Window.h" />
     <ClInclude Include="Clock.h" />
@@ -110,12 +110,12 @@
   <ItemGroup>
     <ClCompile Include="Arti3DApp.cpp" />
     <ClCompile Include="Arti3D_IndexBuffer.cpp" />
+    <ClCompile Include="Arti3D_Mesh.cpp" />
     <ClCompile Include="Arti3D_RenderTarget.cpp" />
     <ClCompile Include="Arti3D_Surface.cpp" />
     <ClCompile Include="Arti3D_Thread.cpp" />
     <ClCompile Include="Arti3D_Tile.cpp" />
     <ClCompile Include="Arti3D_VertexBuffer.cpp" />
-    <ClCompile Include="Arti3D_VertexLayout.cpp" />
     <ClCompile Include="Arti3D_ShaderBase.cpp" />
     <ClCompile Include="Arti3D_Window.cpp" />
     <ClCompile Include="Shader.cpp" />

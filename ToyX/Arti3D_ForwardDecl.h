@@ -14,6 +14,7 @@ class Arti3DVertexShader;
 class Arti3DPixelShader;
 class Arti3DThread;
 class Arti3DTile;
+class Arti3DMesh;
 
 typedef std::shared_ptr<Arti3DWindow>		SPWindow;
 typedef std::shared_ptr<Arti3DRenderTarget> SPRenderTarget;
@@ -36,6 +37,7 @@ typedef Arti3DVertexShader*					PArti3DVertexShader;
 typedef Arti3DPixelShader*			 		PArti3DPixelShader;
 typedef Arti3DThread*						PArti3DThread;
 typedef Arti3DTile*							PArti3DTile;
+typedef Arti3DMesh*							PArti3DMesh;
 
 
 

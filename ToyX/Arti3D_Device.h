@@ -65,7 +65,7 @@ public:
 
 	// Distribute Work For Every Threads.
 	// This Function Must Be Called After The Scene Is Loaded And The Index Buffer Is Properly Setup.
-	Arti3DResult InitializeWorkThreads();
+	Arti3DResult DistributeThreadWorkload();
 
 	// Create Render Target
 	Arti3DResult CreateRenderTarget(Arti3DRenderTarget **o_pRenderTarget);
@@ -93,19 +93,16 @@ public:
 	// @param iAttribute : The Number Of Attributes A Vertex Has.
 	// @param i_pVAFormat : Pointer To An Array Of Arti3DVertexAttributeFormat To Specify The Format Of Every Vertex Attribute. It Should At Least Have "iAttribute" Elements.
 	Arti3DResult CreateVertexLayout(Arti3DVertexLayout **o_pVertexLayout, uint32_t iAttribute, Arti3DVertexAttributeFormat *i_pVAFormat);
-	
-	// Set Current Vertex Layout.
-	// @param pVertexBuffer : Pointer To The Source Vertex Layout.
-	Arti3DResult SetVertexLayout(Arti3DVertexLayout *pLayout);
 
 	// Create Buffer For Triangle Vertices. By Creating, I Mean Allocating Space.
 	// @param o_pVertexBuffer : Pointer To The Target Vertex Buffer Pointer.
-	// @param iLength : The Storage That The Target Vertex Buffer Needs, In Bytes.
-	Arti3DResult CreateVertexBuffer(Arti3DVertexBuffer **o_pVertexBuffer, uint32_t iLength);
+	// @param o_pVertexLayout : Pointer to Arti3DVertexLayout.
+	// @param iVertexCount : The vertex count.
+	Arti3DResult CreateVertexBuffer(Arti3DVertexBuffer **o_pVertexBuffer, Arti3DVertexLayout* o_pVertexLayout,uint32_t iVertexCount);
 
 	// Set Current Vertex Buffer.
 	// @param pVertexBuffer : Pointer To The Source Vertex Buffer.
-	Arti3DResult SetVertexBuffer(Arti3DVertexBuffer *pVertexBuffer);
+	Arti3DResult BindVertexBuffer(Arti3DVertexBuffer *pVertexBuffer);
 
 	// Create Buffer For Triangle Indices. By Creating, I Mean Allocating Space.
 	// @param o_pIndexBuffer : Pointer To The Target Index Buffer Pointer.
@@ -115,7 +112,7 @@ public:
 
 	// Set Current Index Buffer.
 	// @param pIndexBuffer : Pointer To The Source Index Buffer.
-	Arti3DResult SetIndexBuffer(Arti3DIndexBuffer *pIndexBuffer);
+	Arti3DResult BindIndexBuffer(Arti3DIndexBuffer *pIndexBuffer);
 
 	Arti3DResult AttachTextureUnit(PArti3DSurface pSurface, int iTexUint);
 
@@ -174,7 +171,6 @@ private:
 private:
 	Arti3DIndexBuffer		*m_pIndexBuffer;
 	Arti3DVertexBuffer		*m_pVertexBuffer;
-	Arti3DVertexLayout		*m_pVertexLayout;
 
 	PArti3DThread			m_pThreads;
 
@@ -197,7 +193,7 @@ private:
 	int							m_iTileX;
 	int							m_iTileY;
 
-	std::ofstream		dFile;
+	std::ofstream				dFile;
 
 	Arti3DRenderTarget			*m_pRenderTarget;
 

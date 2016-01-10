@@ -9,14 +9,14 @@ protected:
 	friend class Arti3DDevice;
 
 	Arti3DIndexBuffer();
-	~Arti3DIndexBuffer();
+
 
 
 	Arti3DResult Create(uint32_t iLength, Arti3DFormat format);
 	
 
 public:
-	
+	~Arti3DIndexBuffer();	
 	
 	// Get The Length Of The Index Buffer In Bytes.
 	uint32_t iGetLength();

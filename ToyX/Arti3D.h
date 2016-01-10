@@ -4,10 +4,10 @@
 #include "Arti3D_Window.h"
 #include "Arti3D_Device.h"
 #include "Arti3D_RenderTarget.h"
-#include "Arti3D_VertexLayout.h"
 #include "Arti3D_VertexBuffer.h"
 #include "Arti3D_IndexBuffer.h"
 #include "Arti3D_Surface.h"
+#include "Arti3D_Mesh.h"
 #include "Shader.h"
 #include "Clock.h"
 
