@@ -18,10 +18,10 @@ struct Arti3DDeviceParameter
 
 struct RenderContext
 {
-	PArti3DVertexShader	pVertexShader;
-	PArti3DPixelShader	pPixelShader;
-	Arti3DShaderUniform	globals;
-	PArti3DSurface		pSurfaces[ARTI3D_MAX_TEXTURE_UNIT];
+	PArti3DVertexShader	pVertexShader;		// ptr to vertex shader object.
+	PArti3DPixelShader	pPixelShader;		// ptr to pixel shader object
+	Arti3DShaderUniform	globals;			// global matrices.
+	PArti3DSurface		pSurfaces[ARTI3D_MAX_TEXTURE_UNIT];		// texture slots.
 };
 
 class Arti3DDevice
@@ -49,9 +49,9 @@ public:
 	
 	void Draw3DLines(const a3d::vec4& p1, const a3d::vec4 p2, uint32_t color);
 
+
 	inline void SetPixelColor(int x, int y, uint32_t c);
-
-
+	
 	// Get pixel format based on channel masks
 	// @param bpp : bits per pixel.
 	// @param Rmask : red channel mask.
@@ -83,6 +83,12 @@ public:
 	// @param bmask : blue channel mask.
 	// @param amask : alpha channel mask.
 	Arti3DResult CreateRGBSurface(Arti3DSurface **o_pSurface,uint32_t width,uint32_t height,uint32_t bpp, uint32_t rmask, uint32_t gmask, uint32_t bmask, uint32_t amask);
+
+	// Create RGB surface from file.
+	// @param o_pSurface : pointer to pointer to Arti3DSurface.
+	// @param pFilepath : pointer to file path.
+	Arti3DResult CreateRGBSurface(Arti3DSurface **o_pSurface, const char *pFilepath);
+
 
 	// Create Surface Associated With Some Windows For Backbuffer.
 	// @param pWindow : pointer to the window that the surface associated with.

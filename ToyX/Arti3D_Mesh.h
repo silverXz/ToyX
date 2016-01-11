@@ -6,7 +6,6 @@
 
 class Arti3DMesh
 {
-
 public:
 	Arti3DMesh(Arti3DDevice *pDevice);
 	~Arti3DMesh();

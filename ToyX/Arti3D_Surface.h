@@ -31,6 +31,10 @@ protected:
 	// @param : pointer to the window that the surface associated with.
 	Arti3DResult Create(Arti3DWindow *pWindow);
 
+	// Create surface from file.
+	// @param pFilepath : File path.
+	Arti3DResult Create(const char *pFilepath);
+
 public:
 	~Arti3DSurface();
 

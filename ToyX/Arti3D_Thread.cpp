@@ -749,6 +749,7 @@ void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
 		for (int y = i_pFrag->y; y < i_pFrag->y + g_ciTileSize; ++y)
 		{
 			CalcVaryings(f, x, y, W0, W1, WDY, V0, V1, VDY);
+
 			SSE_ALIGN Arti3DPSParam ps_param;
 			
 			__m128	dbquad;

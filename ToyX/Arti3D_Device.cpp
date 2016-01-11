@@ -160,6 +160,7 @@ void Arti3DDevice::Draw3DLines(const a3d::vec4& p1, const a3d::vec4 p2, uint32_t
 {
 	vec4 clip1 = mRC.globals.mvp * p1;
 	vec4 clip2 = mRC.globals.mvp * p2;
+
 	// perspective division
 	float invW1 = 1.0f / clip1.w;
 	clip1.x *= invW1;
@@ -541,6 +542,15 @@ Arti3DResult Arti3DDevice::CreateRGBSurface(Arti3DSurface **o_pSurface,uint32_t 
 		return ARTI3D_INVALID_PARAMETER;
 	*o_pSurface = new Arti3DSurface(this);
 	(*o_pSurface)->Create(bpp, width, height, rmask, gmask, bmask, amask);
+	return ARTI3D_OK;
+}
+
+Arti3DResult Arti3DDevice::CreateRGBSurface(Arti3DSurface **o_pSurface, const char *pFilepath)
+{
+	if (!o_pSurface)
+		return ARTI3D_INVALID_PARAMETER;
+	*o_pSurface = new Arti3DSurface(this);
+	(*o_pSurface)->Create(pFilepath);
 	return ARTI3D_OK;
 }
 

@@ -4,6 +4,7 @@
 #include "Arti3D_Window.h"
 
 #include <SDL/SDL.h>
+#include <FreeImage/FreeImage.h>
 
 Arti3DSurface::Arti3DSurface(Arti3DDevice *i_pParent) : m_pParent(i_pParent)
 {
@@ -62,6 +63,41 @@ Arti3DResult Arti3DSurface::Create(Arti3DWindow *pWindow)
 	m_pixelFormat.Gshift = 16;
 	m_pixelFormat.Bshift = 8;
 	m_pixelFormat.Ashift = 0;
+
+	return ARTI3D_OK;
+}
+
+Arti3DResult Arti3DSurface::Create(const char *pFilepath)
+{
+	FREE_IMAGE_FORMAT fif = FreeImage_GetFileType(pFilepath);
+
+	if (fif == FIF_UNKNOWN)
+		fif = FreeImage_GetFIFFromFilename(pFilepath);
+
+	if (fif == FIF_UNKNOWN)
+		return ARTI3D_INVALID_PARAMETER;
+
+	if (!FreeImage_FIFSupportsReading(fif))
+		return ARTI3D_INVALID_PARAMETER;
+
+	FIBITMAP *pBitmap = FreeImage_Load(fif, pFilepath);
+	if (!pBitmap)
+	{
+		printf("Failed to load image.\n");
+		return ARTI3D_UNKOWN;
+	}
+
+	uint8_t *pixels = FreeImage_GetBits(pBitmap);
+
+	int iWidth = FreeImage_GetWidth(pBitmap);
+	int iHeight = FreeImage_GetHeight(pBitmap);
+	int iBpp = FreeImage_GetBPP(pBitmap);
+
+	int rMask = FreeImage_GetRedMask(pBitmap);
+	int gMask = FreeImage_GetGreenMask(pBitmap);
+	int bMask = FreeImage_GetBlueMask(pBitmap);
+
+	FreeImage_Unload(pBitmap);
 
 	return ARTI3D_OK;
 }

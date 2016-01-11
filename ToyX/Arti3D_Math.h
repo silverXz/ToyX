@@ -232,16 +232,15 @@ namespace a3d
 
 		template<class Type> friend std::ostream& operator<<(std::ostream& os, const Vector3<Type>& refV3);
 
-		Type& x(void) { return v[0]; }
-		Type& y(void) { return v[1]; }
-		Type& z(void) { return v[2]; }
-
-		const Type& x(void) const { return v[0];}
-		const Type& y(void) const { return v[1];}
-		const Type& z(void) const { return v[2];}
-
 	public:
-			Type v[3];
+		union {
+			struct {
+				Type v[3];
+			};
+			struct {
+				Type x, y, z;
+			};
+		};
 		
 	};
 
@@ -871,17 +870,17 @@ namespace a3d
 		Type s = (Type)sin(radian);
 		Type OneMinusC = (Type)1.0f - c;
 
-		mat.v[0] = OneMinusC * axis.x() * axis.x() + c;
-		mat.v[1] = OneMinusC * axis.x() * axis.y() + axis.z() * s;
-		mat.v[2] = OneMinusC * axis.x() * axis.z() - axis.y() * s;
+		mat.v[0] = OneMinusC * axis.x * axis.x + c;
+		mat.v[1] = OneMinusC * axis.x * axis.y + axis.z * s;
+		mat.v[2] = OneMinusC * axis.x * axis.z - axis.y * s;
 
-		mat.v[4] = OneMinusC * axis.x() * axis.y() - axis.z() * s;
-		mat.v[5] = OneMinusC * axis.y() * axis.y() + c;
-		mat.v[6] = OneMinusC * axis.y() * axis.z() + axis.x() * s;
+		mat.v[4] = OneMinusC * axis.x * axis.y - axis.z * s;
+		mat.v[5] = OneMinusC * axis.y * axis.y + c;
+		mat.v[6] = OneMinusC * axis.y * axis.z + axis.x * s;
 
-		mat.v[8] = OneMinusC * axis.x() * axis.z() + axis.y() * s;
-		mat.v[9] = OneMinusC * axis.y() * axis.z() - axis.x() * s;
-		mat.v[10] = OneMinusC * axis.z() * axis.z() + c;
+		mat.v[8] = OneMinusC * axis.x * axis.z + axis.y * s;
+		mat.v[9] = OneMinusC * axis.y * axis.z - axis.x * s;
+		mat.v[10] = OneMinusC * axis.z * axis.z + c;
 		return mat;
 	}
 
@@ -1137,9 +1136,9 @@ namespace a3d
 		Vector3<Type> s = normalize(cross(f, u));		// x
 		u = normalize(cross(s, f));
 
-		return Matrix4<Type>(s.x(), u.x(), -f.x(), 0.0f,
-			s.y(), u.y(), -f.y(), 0.0f,
-			s.z(), u.z(), -f.z(), 0.0f,
+		return Matrix4<Type>(s.x, u.x, -f.x, 0.0f,
+			s.y, u.y, -f.y, 0.0f,
+			s.z, u.z, -f.z, 0.0f,
 			-dot(s, eye), -dot(u, eye), dot(f, eye), 1.0f);
 	}
 
@@ -1294,43 +1293,6 @@ namespace a3d
 	typedef Vector4<double> dvec4;
 	
 	//// Math Functions
-	//template<typename Type>
-	//unsigned int ToUInt32(const Vector4<Type>& color)
-	//{
-	//	uint32_t r = (uint32_t)(color.x() * 255.0f);
-	//	r = (r > 255) ? 255 : r;
-	//	uint32_t g = (uint32_t)(color.y() * 255.0f);
-	//	g = (g > 255) ? 255 : g;
-	//	uint32_t b = (uint32_t)(color.z() * 255.0f);
-	//	b = ( b > 255 ) ? 255 : b;
-	//	uint32_t a = (uint32_t)(color.w() * 255.0f);
-
-	//	return (a << 24) | (r << 16) | (g << 8) | b;
-	//}
-
-	//template<typename Type>
-	//unsigned char GetRed(const Vector4<Type>& color)
-	//{
-	//	return color.x() * 255.0f;
-	//}
-
-	//template<typename Type>
-	//unsigned char GetGreen(const Vector4<Type>& color)
-	//{
-	//	return color.y() * 255.0f;
-	//}
-
-	//template<typename Type>
-	//unsigned char GetBlue(const Vector4<Type>& color)
-	//{
-	//	return color.z() * 255.0f;
-	//}
-
-	//template<typename Type>
-	//unsigned char GetAlpha(const Vector4<Type>& color)
-	//{
-	//	return color.w() * 255.0f;
-	//}
 
 	template<typename Type>
 	Type Degree2Radian(Type degrees)

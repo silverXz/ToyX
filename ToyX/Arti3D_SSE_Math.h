@@ -89,6 +89,9 @@ public:
 	SSE_Float	x, y;
 };
 
+const SSE_Float SSE_ONE = SSE_Float(1.0f);
+const SSE_Float SSE_ZERO = SSE_Float(0.0f);
+
 SSE_Vec2 operator *(const SSE_Float &f, const SSE_Vec2 &v);
 
 
@@ -191,9 +194,19 @@ public:
 
 SSE_Vec4 operator * (const SSE_Float &f, const SSE_Vec4 &v);
 
+inline SSE_Vec3 SSE_Reflect(const SSE_Vec3& vIn, const SSE_Vec3& vNorm)
+{
+	return vIn + SSE_Float(2.0f) * vNorm * vNorm.Dot(-vIn);
+}
+
 inline __m128 SSE_Clamp(__m128 val, __m128 fMin, __m128 fMax)
 {
 	return _mm_max_ps(_mm_min_ps(val, fMax), fMin);
+}
+
+inline SSE_Float SSE_Max(const SSE_Float& f1, const SSE_Float& f2)
+{
+	return SSE_Float(_mm_max_ps(f1.f, f2.f));
 }
 
 inline __m128 SSE_Wrap(__m128 &val)

@@ -11,12 +11,12 @@ SSE_Float::SSE_Float(const __m128 &sf)
 
 SSE_Float::SSE_Float(float ss)
 {
-	_mm_set1_ps(ss);
+	f = _mm_set1_ps(ss);
 }
 
 SSE_Float::SSE_Float(float a, float b, float c, float d)
 {
-	_mm_set_ps(a, b, c, d);
+	f = _mm_set_ps(a, b, c, d);
 }
 
 SSE_Float::operator __m128() const
@@ -81,7 +81,7 @@ SSE_Float SSE_Float::operator+() const
 
 SSE_Float SSE_Float::operator-() const
 {
-	return _mm_xor_ps(f, _mm_set1_ps(0x80000000));
+	return _mm_xor_ps(f, *(__m128*)&_mm_set1_epi32(0x80000000));
 }
 
 SSE_Float SSE_Float::operator+(const SSE_Float& crsf) const
