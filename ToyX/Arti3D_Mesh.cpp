@@ -152,34 +152,43 @@ void Arti3DMesh::CreateTextureCube()
 
 	PArti3DSurface pSurface = nullptr;
 
-	Arti3DResult a3dr = m_pDevice->CreateRGBSurface(&pSurface, iTexWidth, iTexHeight, 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
+	m_pDevice->CreateRGBSurface(&pSurface, "tile.png");
 
-	if (a3dr != ARTI3D_OK)
-		return;
+	//CreateCheckboardTexture(&pSurface, iTexWidth, iTexHeight);
 
-	int iBoardLength = 32;
-
-	uint32_t white = 0x00FF0000;
-	uint32_t black = 0xFF000000;
-
-	uint32_t cc = white;
-
-	uint32_t *pp = (uint32_t*)pSurface->pGetPixelsDataPtr();
-
-	for (int i = 0; i < iTexHeight; ++i)
-	{
-		int br = (i & iBoardLength);
-		for (int j = 0; j < iTexWidth; ++j)
-		{
-			cc = (j & iBoardLength) ^ br ? black : white;
-			pp[i * iTexWidth + j] = cc;
-		}
-	}
 	m_pDevice->AttachTextureUnit(pSurface, 0);
 }
 
 void Arti3DMesh::LoadFromFile(const char *pFilePath)
 {
 
+}
+
+Arti3DResult Arti3DMesh::CreateCheckboardTexture(Arti3DSurface **pSurface, int iWidth, int iHeight)
+{
+	Arti3DResult a3dr = m_pDevice->CreateRGBSurface(pSurface, iWidth, iHeight, 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
+
+	if (a3dr != ARTI3D_OK)
+		return a3dr;
+
+	int iBoardLength = 32;
+
+	uint32_t white = 0x000000FF;
+	uint32_t black = 0xFFFFFFFF;
+
+	uint32_t cc = white;
+
+	uint32_t *pp = (uint32_t*)(*pSurface)->pGetPixelsDataPtr();
+
+	for (int i = 0; i < iHeight; ++i)
+	{
+		int br = (i & iBoardLength);
+		for (int j = 0; j < iWidth; ++j)
+		{
+			cc = (j & iBoardLength) ^ br ? black : white;
+			pp[i * iWidth + j] = cc;
+		}
+	}
+	return a3dr;
 }
 

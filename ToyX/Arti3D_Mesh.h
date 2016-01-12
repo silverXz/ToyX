@@ -18,6 +18,9 @@ public:
 	void LoadFromFile(const char *pFilePath);
 
 private:
+	Arti3DResult CreateCheckboardTexture(Arti3DSurface **pSurface, int iWidth, int iHeight);
+
+private:
 	Arti3DDevice			*m_pDevice;
 
 	Arti3DVertexBuffer		*m_pVertexBuffer;

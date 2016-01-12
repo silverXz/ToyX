@@ -87,17 +87,88 @@ Arti3DResult Arti3DSurface::Create(const char *pFilepath)
 		return ARTI3D_UNKOWN;
 	}
 
-	uint8_t *pixels = FreeImage_GetBits(pBitmap);
-
-	int iWidth = FreeImage_GetWidth(pBitmap);
-	int iHeight = FreeImage_GetHeight(pBitmap);
 	int iBpp = FreeImage_GetBPP(pBitmap);
+	
+	FIBITMAP *pBitmap32 = iBpp <= 24 ? FreeImage_ConvertTo32Bits(pBitmap) : pBitmap;
 
-	int rMask = FreeImage_GetRedMask(pBitmap);
-	int gMask = FreeImage_GetGreenMask(pBitmap);
-	int bMask = FreeImage_GetBlueMask(pBitmap);
+	if (!pBitmap)
+		return ARTI3D_UNKOWN;
 
-	FreeImage_Unload(pBitmap);
+	assert(FreeImage_GetBPP(pBitmap32) == 32);
+
+	int iWidth	  = FreeImage_GetWidth(pBitmap32);
+	int iHeight	  = FreeImage_GetHeight(pBitmap32);
+	int iSrcPitch = FreeImage_GetPitch(pBitmap32);
+
+	int rMask = FreeImage_GetRedMask(pBitmap32);
+	int gMask = FreeImage_GetGreenMask(pBitmap32);
+	int bMask = FreeImage_GetBlueMask(pBitmap32);
+
+	m_pSurface = SDL_CreateRGBSurface(0, iWidth, iHeight, 32, rMask, gMask, bMask, 0);
+
+	m_pixelFormat.BitsPerPixel = 32;
+	m_pixelFormat.BytesPerPixel = 4;
+
+	m_pixelFormat.RMask = rMask;
+	m_pixelFormat.GMask = gMask;
+	m_pixelFormat.BMask = bMask;
+	m_pixelFormat.AMask = 0;
+
+	switch (rMask)
+	{
+	// RGBX
+	case 0xFF000000:
+	{
+		m_pixelFormat.Rshift = 24;
+		m_pixelFormat.Gshift = 16;
+		m_pixelFormat.Bshift = 8;
+		m_pixelFormat.Ashift = 0;
+		break;
+	}
+	// XRGB
+	case 0x00FF0000:
+	{
+		m_pixelFormat.Rshift = 16;
+		m_pixelFormat.Gshift = 8;
+		m_pixelFormat.Bshift = 0;
+		m_pixelFormat.Ashift = 24;
+		break;
+	}
+	// BGRA
+	case 0x0000FF00:
+	{
+		m_pixelFormat.Rshift = 8;
+		m_pixelFormat.Gshift = 16;
+		m_pixelFormat.Bshift = 24;
+		m_pixelFormat.Ashift = 0;
+	}
+	// ABGR
+	case 0x000000FF:
+	{
+		m_pixelFormat.Rshift = 0;
+		m_pixelFormat.Gshift = 8;
+		m_pixelFormat.Bshift = 16;
+		m_pixelFormat.Ashift = 24;
+		break;
+	}
+	default:
+		break;
+	}
+
+	uint8_t *pSrc = FreeImage_GetBits(pBitmap32);
+	uint8_t *pDst = reinterpret_cast<uint8_t*>(pGetPixelsDataPtr());
+	int iDstPitch = iGetPitch();
+
+	for (int i = 0; i < iHeight; ++i)
+	{
+		memcpy(pDst, pSrc, iSrcPitch);
+		pSrc += iSrcPitch;
+		pDst += iDstPitch;
+	}
+
+	if (iBpp <= 24)
+		FreeImage_Unload(pBitmap);
+	FreeImage_Unload(pBitmap32);
 
 	return ARTI3D_OK;
 }

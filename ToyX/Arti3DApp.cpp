@@ -218,10 +218,5 @@ void Arti3DApp::SetupScene2()
 	m_pPixelShader = new CheckboardCubePS(m_pDevice);
 	
 	m_pDevice->DistributeThreadWorkload();
-
-	Arti3DSurface *pS = nullptr;
-	m_pDevice->CreateRGBSurface(&pS, "arti3d.png");
-	if (pS)
-		delete pS;
 		
 }
