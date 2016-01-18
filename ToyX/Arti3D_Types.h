@@ -6,6 +6,7 @@
 
 #include "Arti3D_Math.h"
 #include "Arti3D_SSE_Math.h"
+#include "Arti3D_ForwardDecl.h"
 
 #define FLOAT_CAST(x) static_cast<float>(x)
 
@@ -20,6 +21,8 @@ const int ARTI3D_MAX_VARYING		= 12;
 const int ARTI3D_MAX_CLIP_VERTEX	= 9;
 const int ARTI3D_MAX_THREAD			= 8;
 const int ARTI3D_MAX_TEXTURE_UNIT	= 8;
+
+const int ARTI3D_MAX_LIGHT = 8;
 
 
 // If you want to change TILE_SIZE, remember to change TILE_SIZE_SHIFT as well.
@@ -68,13 +71,33 @@ enum Arti3DResult {
 	ARTI3D_UNKOWN,
 };
 
+struct Arti3DLight{
+	a3d::vec3 vPosition;
+	a3d::vec3 vIntensity;
+};
+
+struct Arti3DMaterial {
+	a3d::vec3	vAmbient;
+	a3d::vec3	vDiffuse;
+	a3d::vec3	vSpecular;
+	float		fShinness;
+};
+
 struct Arti3DShaderUniform
 {
+	// Matrices
 	a3d::mat4 model;
 	a3d::mat4 view;
 	a3d::mat4 projection;
 	a3d::mat4 mvp;
 	a3d::vec4 viewport;
+
+	// Light Info.
+	Arti3DLight		lights[ARTI3D_MAX_LIGHT];
+	// Material Info.
+	Arti3DMaterial	material;
+	// texture slots.
+	PArti3DSurface	pSurfaces[ARTI3D_MAX_TEXTURE_UNIT];		
 };
 
 enum Arti3DVertexAttributeFormat

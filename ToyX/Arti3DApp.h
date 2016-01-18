@@ -25,6 +25,9 @@ public:
 	// Setup Textured Cube Scene.
 	void SetupScene2();
 
+	// Setup Scene For Phong Cube.
+	void SetupScene3();
+
 	void CalculateFPS();
 
 	static void HandleEvent(const SDL_Event& event, Arti3DApp *pApp);

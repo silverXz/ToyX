@@ -14,6 +14,7 @@ public:
 
 	void CreateColorCube();
 	void CreateTextureCube();
+	void CreatePhongCube();
 	
 	void LoadFromFile(const char *pFilePath);
 

@@ -4,38 +4,8 @@
 #include "Arti3D_Device.h"
 #include "Arti3D_Surface.h"
 
-Arti3DVertexShader::Arti3DVertexShader(Arti3DDevice *pDevice) : m_pDevice(pDevice)
-{
-}
 
-Arti3DVertexShader::~Arti3DVertexShader()
-{
-
-}
-
-void Arti3DVertexShader::Use()
-{
-	assert(m_pDevice);
-	m_pDevice->SetVertexShader(this);
-}
-
-Arti3DPixelShader::Arti3DPixelShader(Arti3DDevice *pDevice) : m_pDevice(pDevice)
-{
-
-}
-
-Arti3DPixelShader::~Arti3DPixelShader()
-{
-
-}
-
-void Arti3DPixelShader::Use()
-{
-	assert(m_pDevice);
-	m_pDevice->SetPixelShader(this);
-}
-
-SSE_Color3 Arti3DPixelShader::SampleTexture(int iTexUint, SSE_Float& fU, SSE_Float& fV)
+SSE_Color3 Arti3DPixelShader::SampleTexture(Arti3DSurface *pSurface, SSE_Float& fU, SSE_Float& fV)
 {
 	__m128 inv = _mm_set1_ps(1.0f / 255.0f);
 
@@ -44,8 +14,6 @@ SSE_Color3 Arti3DPixelShader::SampleTexture(int iTexUint, SSE_Float& fU, SSE_Flo
 
 	fU = SSE_Clamp(fU, zero, one);
 	fV = SSE_Clamp(fV, zero, one);
-
-	PArti3DSurface pSurface = m_pDevice->mRC.pSurfaces[iTexUint];
 	
 	int w = pSurface->iGetWidth();
 	int h = pSurface->iGetHeight();

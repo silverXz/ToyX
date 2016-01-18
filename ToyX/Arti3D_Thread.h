@@ -134,7 +134,7 @@ private:
 	uint32_t					m_iStart;				// Work Load Start Index.
 	uint32_t					m_iEnd;					// Work Load End Index.
 
-	Arti3DDevice				*m_pParent;				// Parent Who Created This Thread.
+	Arti3DDevice				*m_pDevice;				// Parent Who Created This Thread.
 };
 
 

@@ -159,6 +159,80 @@ void Arti3DMesh::CreateTextureCube()
 	m_pDevice->AttachTextureUnit(pSurface, 0);
 }
 
+void Arti3DMesh::CreatePhongCube()
+{
+	if (!m_pDevice)
+		return;
+
+	// Create Cube Data.
+	const float len = 2.0f;
+
+	std::vector<std::vector<float>> xv{
+		{ -len, len, len, 1.0f, 0.0f, 0.0f, 1.0f },	//0,0 - front
+		{ -len, -len, len, 1.0f, 0.0f, 0.0f,1.0f },	//1,4 - front
+		{ len, -len, len, 1.0f, 0.0f, 0.0f,1.0f },	//2,5 - front
+		{ len, len, len, 1.0f, 0.0f, 0.0f, 1.0f },  //3,1 - front
+
+		{ len, len, len, 1.0f, 1.0f, 0.0f,0.0f },	//4,1 - right
+		{ len, -len, len, 1.0f, 1.0f, 0.0f,0.0f },	//5,5 - right
+		{ len, -len, -len, 1.0f, 1.0f, 0.0f,0.0f },	//6,6 - right
+		{ len, len, -len, 1.0f, 1.0f, 0.0f,0.0f },	//7,2 - right
+
+		{ len, len, -len, 1.0f, 0.0f, 0.0f,-1.0f },	//8,2 - back
+		{ len, -len, -len, 1.0f, 0.0f,0.0f,-1.0f },	//9,6 - back
+		{ -len, -len, -len, 1.0f,0.0f,0.0f,-1.0f },	//10,7 - back
+		{ -len, len, -len, 1.0f, 0.0f,0.0f,-1.0f },	//11,3 - back
+
+		{ -len, len, -len, 1.0f, -1.0f,0.0f,0.0f },	//12,3 - left
+		{ -len, -len, -len, 1.0f,-1.0f,0.0f,0.0f },	//13,7 - left
+		{ -len, -len, len, 1.0f, -1.0f,0.0f,0.0f },	//14,4 - left
+		{ -len, len, len, 1.0f, -1.0f,0.0f,0.0f },	//15,0 - left
+
+		{ -len, len, -len, 1.0f, 0.0f, 1.0f,0.0f },	//16,3 - up
+		{ -len, len, len, 1.0f, 0.0f, 1.0f,0.0f },	//17,0 - up
+		{ len, len, len, 1.0f, 0.0f,1.0f, 0.0f },	//18,1 - up
+		{ len, len, -len, 1.0f, 0.0f, 1.0f,0.0f },	//19,2 - up
+
+		{ -len, -len, len, 1.0f, 0.0f,-1.0f,0.0f },	//20,4 - down
+		{ -len, -len, -len, 1.0f,0.0f,-1.0f,0.0f },	//21,7 - down
+		{ len, -len, -len, 1.0f, 0.0f,-1.0f,0.0f },	//22,6 - down
+		{ len, -len, len, 1.0f,0.0f,-1.0f,0.0f }	//23,5 - down
+	};
+
+	int iVertex = xv.size();
+
+	Arti3DVertexLayout *pVertexLayout = nullptr;
+	Arti3DVertexAttributeFormat vaf[] = { ARTI3D_VAF_VECTOR4, ARTI3D_VAF_VECTOR3 };
+	m_pDevice->CreateVertexLayout(&pVertexLayout, 2, vaf);
+	m_pDevice->CreateVertexBuffer(&m_pVertexBuffer, pVertexLayout, iVertex);
+
+	int iStride = m_pVertexBuffer->iGetStride();
+
+	for (int i = 0; i < iVertex; ++i)
+	{
+		void *pDest = nullptr;
+		m_pVertexBuffer->GetPointer(i * iStride, &pDest);
+		memcpy(pDest, &xv[i][0], iStride);
+	}
+
+	m_pDevice->BindVertexBuffer(m_pVertexBuffer);
+
+	// Create and upload index buffer data.
+	m_pDevice->CreateIndexBuffer(&m_pIndexBuffer, 36 * sizeof(uint32_t), ARTI3D_FORMAT_INDEX32);
+	uint32_t xid[] = { 0, 1, 2, 0, 2, 3,
+		4, 5, 6, 4, 6, 7,
+		8, 9, 10, 8, 10, 11,
+		12, 13, 14, 12, 14, 15,
+		16, 17, 18, 16, 18, 19,
+		20, 21, 22, 20, 22, 23 };
+
+	void *pDest = nullptr;
+	m_pIndexBuffer->GetPointer(0, &pDest);
+	memcpy(pDest, xid, sizeof(xid));
+
+	m_pDevice->BindIndexBuffer(m_pIndexBuffer);
+}
+
 void Arti3DMesh::LoadFromFile(const char *pFilePath)
 {
 

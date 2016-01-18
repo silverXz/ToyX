@@ -13,7 +13,7 @@ void SimpleCubeVS::Execute(Arti3DVSInput *i_pVSInput, Arti3DShaderUniform* i_pUn
 	o_pVSOutput->varyings[1] = i_pVSInput->ShaderInputs[1].y;
 	o_pVSOutput->varyings[2] = i_pVSInput->ShaderInputs[1].z;
 }
-void SimpleCubePS::Execute(Arti3DPSParam *io_pPSParam)
+void SimpleCubePS::Execute(Arti3DShaderUniform*, Arti3DPSParam *io_pPSParam)
 {
 	io_pPSParam->Output.r = io_pPSParam->Varyings[0];
 	io_pPSParam->Output.g = io_pPSParam->Varyings[1];
@@ -32,9 +32,10 @@ void CheckboardCubeVS::Execute(Arti3DVSInput *i_pVSInput, Arti3DShaderUniform* i
 	o_pVSOutput->varyings[1] = i_pVSInput->ShaderInputs[1].y;
 }
 
-void CheckboardCubePS::Execute(Arti3DPSParam *io_pPSParam)
+void CheckboardCubePS::Execute(Arti3DShaderUniform *i_pUniform, Arti3DPSParam *io_pPSParam)
 {
-	io_pPSParam->Output = SampleTexture(0,io_pPSParam->Varyings[0], io_pPSParam->Varyings[1]);
+	Arti3DSurface *pSurface = i_pUniform->pSurfaces[0];
+	io_pPSParam->Output = SampleTexture(pSurface,io_pPSParam->Varyings[0], io_pPSParam->Varyings[1]);
 }
 
 void PhongVS::Execute(Arti3DVSInput *i_pVSInput, Arti3DShaderUniform* i_pUniform, Arti3DVSOutput *o_pVSOutput)
@@ -57,12 +58,19 @@ void PhongVS::Execute(Arti3DVSInput *i_pVSInput, Arti3DShaderUniform* i_pUniform
 	o_pVSOutput->varyings[5] = vNormInCam.z;
 }
 
-void PhongPS::Execute(Arti3DPSParam *io_pPSParam)
+void PhongPS::Execute(Arti3DShaderUniform *i_pUnform, Arti3DPSParam *io_pPSParam)
 {
 	// Fetch Vertex Position.
 	SSE_Vec3 *pVertexPos= reinterpret_cast<SSE_Vec3*>(&io_pPSParam->Varyings[0]);
 	
 	// Light Direction.
+	const a3d::vec3 &lp_world = i_pUnform->lights[0].vPosition;
+	const a3d::vec3 &li = i_pUnform->lights[0].vIntensity;
+	a3d::vec3 lp = a3d::vec3(i_pUnform->view * a3d::vec4(lp_world, 1.0f));
+
+	SSE_Vec3 vLightPosition = SSE_Vec3(SSE_Float(lp.x),SSE_Float(lp.y),SSE_Float(lp.z));
+	SSE_Vec3 vLightIntensity = SSE_Vec3(SSE_Float(li.x),SSE_Float(li.y),SSE_Float(li.z));
+
 	SSE_Vec3 vLightDir = vLightPosition - *pVertexPos;
 	vLightDir.Normalize();
 
@@ -81,43 +89,17 @@ void PhongPS::Execute(Arti3DPSParam *io_pPSParam)
 	SSE_Float fSpec		= SSE_Max(vReflect.Dot(vEyeDir),  SSE_ZERO);
 
 	// No power instructions in SSE. So...
-	fSpec = fSpec * fSpec * fSpec * fSpec * fSpec * fSpec;  
+	fSpec *= fSpec;
+	fSpec *= fSpec;
+	fSpec *= fSpec;
 
-	SSE_Vec3 vAmbient	= vKa;
-	SSE_Vec3 vDiffuse	= vKd * fDiffuse;
-	SSE_Vec3 vSpecular	= vKs * fSpec;
+	const a3d::vec3 va = i_pUnform->material.vAmbient;
+	const a3d::vec3 vd = i_pUnform->material.vDiffuse;
+	const a3d::vec3 vs = i_pUnform->material.vSpecular;
 
-	io_pPSParam->Output = vLightIntensity * (vKa + 
-		vKd * SSE_Max(vReflect.Dot(*pNormal),SSE_ZERO) + 
-		vKs * vSpecular);
-}
+	SSE_Vec3 vAmbient	= SSE_Vec3(SSE_Float(va.x), SSE_Float(va.y), SSE_Float(va.z));
+	SSE_Vec3 vDiffuse	= SSE_Vec3(SSE_Float(vd.x), SSE_Float(vd.y), SSE_Float(vd.z)) * fDiffuse;
+	SSE_Vec3 vSpecular	= SSE_Vec3(SSE_Float(vs.x), SSE_Float(vs.y), SSE_Float(vs.z)) * fSpec;
 
-void PhongPS::SetLightPosition(const a3d::vec3& vLight)
-{
-	vLightPosition = SSE_Vec3(SSE_Float(vLightPosition.x),SSE_Float(vLightPosition.y),SSE_Float(vLightPosition.z));
-}
-
-void PhongPS::SetLightIntensity(const a3d::vec3& vIntensity)
-{
-	vLightIntensity = SSE_Vec3(SSE_Float(vIntensity.x), SSE_Float(vIntensity.y), SSE_Float(vIntensity.z));
-}
-
-void PhongPS::SetAmbient(const a3d::vec3& vAmbient)
-{
-	vKa = SSE_Vec3(SSE_Float(vAmbient.x), SSE_Float(vAmbient.y), SSE_Float(vAmbient.z));
-}
-
-void PhongPS::SetDiffuse(const a3d::vec3& vDiffuse)
-{
-	vKd = SSE_Vec3(SSE_Float(vDiffuse.x), SSE_Float(vDiffuse.y), SSE_Float(vDiffuse.z));
-}
-
-void PhongPS::SetSpecular(const a3d::vec3& vSpecular)
-{
-	vKs = SSE_Vec3(SSE_Float(vSpecular.x), SSE_Float(vSpecular.y), SSE_Float(vSpecular.z));
-}
-
-void PhongPS::SetShinness(float fShinness)
-{
-	this->fShinness = SSE_Float(fShinness);
+	io_pPSParam->Output = vLightIntensity * (vAmbient + vDiffuse + vSpecular);
 }

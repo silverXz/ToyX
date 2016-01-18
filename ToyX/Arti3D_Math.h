@@ -357,9 +357,9 @@ namespace a3d
 
 		explicit Vector4(const Vector3<Type>& v3, const Type& w)
 		{
-			v[0] = v3.x();
-			v[1] = v3.y();
-			v[2] = v3.z();
+			v[0] = v3.x;
+			v[1] = v3.y;
+			v[2] = v3.z;
 			v[3] = w;
 		}
 

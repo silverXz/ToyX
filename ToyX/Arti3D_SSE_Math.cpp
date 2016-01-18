@@ -433,7 +433,7 @@ SSE_Vec3 SSE_Vec3::operator/(const SSE_Float &f) const
 
 SSE_Vec3 operator*(const SSE_Float &f, const SSE_Vec3 &v)
 {
-	return SSE_Vec3(f + v.x, f + v.y, f + v.z);
+	return SSE_Vec3(f * v.x, f * v.y, f * v.z);
 }
 
 //!SSE_Vec4 Implementation!

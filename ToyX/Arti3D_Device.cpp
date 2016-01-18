@@ -45,7 +45,7 @@ Arti3DDevice::~Arti3DDevice()
 	StopAllThreads();
 
 	for (int i = 0; i < ARTI3D_MAX_TEXTURE_UNIT; ++i)
-		SAFE_DELETE(mRC.pSurfaces[i]);
+		SAFE_DELETE(mRC.globals.pSurfaces[i]);
 
 	SAFE_DELETE(m_pRenderTarget);
 	SAFE_DELETE_ARRAY(m_pThreads);
@@ -275,7 +275,6 @@ void Arti3DDevice::DrawTileGrid()
 
 Arti3DResult Arti3DDevice::CreateTilesAndJobQueue()
 {
-
 	m_iTileX = (m_iWidth + g_ciTileSize - 1) >> g_ciTileSizeShift;
 	m_iTileY = (m_iHeight + g_ciTileSize - 1) >> g_ciTileSizeShift;
 
@@ -568,7 +567,7 @@ Arti3DResult Arti3DDevice::AttachTextureUnit(PArti3DSurface pSurface, int iTexUi
 	if ( !pSurface || iTexUint >= ARTI3D_MAX_TEXTURE_UNIT || iTexUint < 0)
 		return ARTI3D_INVALID_PARAMETER;
 
-	mRC.pSurfaces[iTexUint] = pSurface;
+	mRC.globals.pSurfaces[iTexUint] = pSurface;
 
 	return ARTI3D_OK;
 }

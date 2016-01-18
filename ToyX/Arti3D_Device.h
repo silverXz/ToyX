@@ -21,7 +21,7 @@ struct RenderContext
 	PArti3DVertexShader	pVertexShader;		// ptr to vertex shader object.
 	PArti3DPixelShader	pPixelShader;		// ptr to pixel shader object
 	Arti3DShaderUniform	globals;			// global matrices.
-	PArti3DSurface		pSurfaces[ARTI3D_MAX_TEXTURE_UNIT];		// texture slots.
+
 };
 
 class Arti3DDevice

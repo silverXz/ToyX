@@ -23,7 +23,9 @@ struct Arti3DVertexCache
 	uint32_t				tag;			// Cache Index.
 	Arti3DVSOutput			vs_output;		// Cached Information.
 
-	Arti3DVertexCache() : tag(UINT_MAX){}
+	Arti3DVertexCache() : tag(UINT_MAX){
+		memset(&vs_output, 0, sizeof(Arti3DVSOutput));
+	}
 
 	inline void Clear()
 	{
@@ -36,14 +38,11 @@ struct Arti3DVertexCache
 class Arti3DVertexShader
 {
 public:
-	Arti3DVertexShader(Arti3DDevice *pDevice);
-	virtual ~Arti3DVertexShader();
+	Arti3DVertexShader() {}
+	virtual ~Arti3DVertexShader() {}
 
 public:
 	virtual void Execute(Arti3DVSInput *i_pVSInput, Arti3DShaderUniform* i_pUniform, Arti3DVSOutput *o_pVSOutput) = 0;
-	void Use();
-protected:
-	Arti3DDevice		*m_pDevice;
 };
 
 
@@ -58,18 +57,14 @@ struct Arti3DPSParam
 class Arti3DPixelShader
 {
 public:
-	Arti3DPixelShader(Arti3DDevice *pDevice);
-	virtual ~Arti3DPixelShader();
+	Arti3DPixelShader() {}
+	virtual ~Arti3DPixelShader() {}
 
 public:
-	virtual void Execute(Arti3DPSParam *io_pPSParam) = 0;
-	void Use();
+	virtual void Execute(Arti3DShaderUniform *i_pUnform,Arti3DPSParam *io_pPSParam) = 0;
 
 protected:
-	SSE_Color3	SampleTexture(int iTexUint, SSE_Float& fU, SSE_Float& fV);
-
-protected:
-	Arti3DDevice		*m_pDevice;
+	SSE_Color3	SampleTexture(Arti3DSurface *pSurface, SSE_Float& fU, SSE_Float& fV);
 };
 
 

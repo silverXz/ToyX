@@ -24,19 +24,19 @@ Arti3DResult Arti3DSurface::Create(uint32_t bpp, uint32_t i_iWidth, uint32_t i_i
 	if (!m_pSurface)
 		return ARTI3D_INVALID_FORMAT;
 
-	m_pixelFormat.BitsPerPixel = bpp;
-	m_pixelFormat.BytesPerPixel = bpp / 8;
+	m_pixelFormat.BitsPerPixel = m_pSurface->format->BitsPerPixel;
+	m_pixelFormat.BytesPerPixel = m_pSurface->format->BytesPerPixel;
 	
-	m_pixelFormat.RMask = rmask;
-	m_pixelFormat.GMask = gmask;
-	m_pixelFormat.BMask = bmask;
-	m_pixelFormat.AMask = amask;
+	m_pixelFormat.RMask = m_pSurface->format->Rmask;
+	m_pixelFormat.GMask = m_pSurface->format->Gmask;
+	m_pixelFormat.BMask = m_pSurface->format->Bmask;
+	m_pixelFormat.AMask = m_pSurface->format->Amask;
 
 	// Uncompleted version!!!!!!!
-	m_pixelFormat.Rshift = (rmask == 0xFF000000) ? 24 : (rmask == 0x000000FF00 ? 8 : 0);
-	m_pixelFormat.Gshift = (gmask == 0x00FF0000) ? 16 : 8;
-	m_pixelFormat.Bshift = (bmask == 0x0000FF00) ? 8 : 16;
-	m_pixelFormat.Ashift = (amask == 0x000000FF) ? 0 : 24;
+	m_pixelFormat.Rshift = m_pSurface->format->Rshift;
+	m_pixelFormat.Gshift = m_pSurface->format->Gshift;
+	m_pixelFormat.Bshift = m_pSurface->format->Bshift;
+	m_pixelFormat.Ashift = m_pSurface->format->Ashift;
 	
 	return ARTI3D_OK;
 }
@@ -50,19 +50,19 @@ Arti3DResult Arti3DSurface::Create(Arti3DWindow *pWindow)
 	if (!m_pSurface)
 		return ARTI3D_INVALID_PARAMETER;
 	
-	m_pixelFormat.BitsPerPixel = 32;
-	m_pixelFormat.BytesPerPixel = 4;
+	m_pixelFormat.BitsPerPixel = m_pSurface->format->BitsPerPixel;
+	m_pixelFormat.BytesPerPixel = m_pSurface->format->BytesPerPixel;
 
-	m_pixelFormat.RMask = 0xFF000000;
-	m_pixelFormat.GMask = 0x00FF0000;
-	m_pixelFormat.BMask = 0x0000FF00;
-	m_pixelFormat.AMask = 0x000000FF;
+	m_pixelFormat.RMask = m_pSurface->format->Rmask;
+	m_pixelFormat.GMask = m_pSurface->format->Gmask;
+	m_pixelFormat.BMask = m_pSurface->format->Bmask;
+	m_pixelFormat.AMask = m_pSurface->format->Amask;
 
 	// Uncompleted version!!!!!!!
-	m_pixelFormat.Rshift = 24;
-	m_pixelFormat.Gshift = 16;
-	m_pixelFormat.Bshift = 8;
-	m_pixelFormat.Ashift = 0;
+	m_pixelFormat.Rshift = m_pSurface->format->Rshift;
+	m_pixelFormat.Gshift = m_pSurface->format->Gshift;
+	m_pixelFormat.Bshift = m_pSurface->format->Bshift;
+	m_pixelFormat.Ashift = m_pSurface->format->Ashift;
 
 	return ARTI3D_OK;
 }

@@ -19,7 +19,7 @@ Arti3DThread::Arti3DThread() : m_pVertexCache(nullptr),
 	m_iThread(0),
 	m_iStart(0),
 	m_iEnd(0),
-	m_pParent(nullptr)
+	m_pDevice(nullptr)
 {
 
 }
@@ -51,16 +51,16 @@ Arti3DResult Arti3DThread::Create(Arti3DDevice *pParent, uint32_t iThread)
 		return ARTI3D_OUT_OF_MEMORY;
 
 	m_iThread = iThread;
-	m_pParent = pParent;
+	m_pDevice = pParent;
 
 	return ARTI3D_OK;
 }
 
 void Arti3DThread::WorkFunc(Arti3DThread *pThread)
 {
-	Arti3DDevice *pDev = pThread->m_pParent;
+	Arti3DDevice *pDev = pThread->m_pDevice;
 
-	while (pThread->m_pParent->m_iStage == 1)
+	while (pThread->m_pDevice->m_iStage == 1)
 		std::this_thread::yield();
 
 	while (!pDev->m_bThreadStop)
@@ -119,11 +119,12 @@ void Arti3DThread::ProcessVertex()
 	for (uint32_t i = m_iStart; i < m_iEnd; i+=3)
 	{
 		Arti3DVSOutput v[ARTI3D_MAX_CLIP_VERTEX];
+		//memset(v, 0, sizeof(Arti3DVSOutput) * ARTI3D_MAX_CLIP_VERTEX);
 
 		for (int j = 0; j < 3; ++j)
 		{
 			uint32_t iVertexIndex = 0;
-			m_pParent->m_pIndexBuffer->GetVertexIndex(i + j, &iVertexIndex);
+			m_pDevice->m_pIndexBuffer->GetVertexIndex(i + j, &iVertexIndex);
 			GetTransformedVertex(iVertexIndex, &v[j]);
 		}
 		ClipTriangle(&v[0], &v[1], &v[2]);
@@ -155,7 +156,7 @@ void Arti3DThread::GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DVSOutput 
 		Arti3DVSInput vsinput;
 
 		void *pSrc = nullptr;
-		Arti3DVertexBuffer *pVertexBuffer = m_pParent->m_pVertexBuffer;
+		Arti3DVertexBuffer *pVertexBuffer = m_pDevice->m_pVertexBuffer;
 		const Arti3DVertexLayout *pVertexLayout = pVertexBuffer->pGetLayout();
 
 		pVertexBuffer->GetPointer(pVertexBuffer->iGetStride() * i_iVertexIndex, &pSrc);
@@ -184,7 +185,7 @@ void Arti3DThread::GetTransformedVertex(uint32_t i_iVertexIndex, Arti3DVSOutput 
 
 		// Execute vertex shader.
 		// Save results to cache.
-		m_pParent->mRC.pVertexShader->Execute(&vsinput, &m_pParent->mRC.globals, &m_pVertexCache[iCacheIndex].vs_output);
+		m_pDevice->mRC.pVertexShader->Execute(&vsinput, &m_pDevice->mRC.globals, &m_pVertexCache[iCacheIndex].vs_output);
 		m_pVertexCache[iCacheIndex].tag = i_iVertexIndex;
 		*o_pVSOutput = m_pVertexCache[iCacheIndex].vs_output;
 	}
@@ -334,7 +335,7 @@ void Arti3DThread::PostProcessVertex(Arti3DVSOutput *io_pVSOutput)
 		io_pVSOutput->varyings[j] *= invW;
 	
 	// Transform to screen space.
-	Arti3DSurface *pbb = m_pParent->m_pRenderTarget->m_pBackbuffer;
+	Arti3DSurface *pbb = m_pDevice->m_pRenderTarget->m_pBackbuffer;
 
 	int w = pbb->iGetWidth();
 	int h = pbb->iGetHeight();
@@ -392,10 +393,10 @@ void Arti3DThread::ComputeTriangleGradient(float C, float di21, float di31, floa
 
 void Arti3DThread::PreProcessTile()
 {
-	Arti3DTile *pTile = m_pParent->m_pTiles;
+	Arti3DTile *pTile = m_pDevice->m_pTiles;
 
-	int iTileX = m_pParent->m_iTileX;
-	int iTileY = m_pParent->m_iTileY;
+	int iTileX = m_pDevice->m_iTileX;
+	int iTileY = m_pDevice->m_iTileY;
 
 	for (uint32_t iFaceID = 0; iFaceID < m_iTransformedFace; ++iFaceID)
 	{
@@ -493,7 +494,7 @@ void Arti3DThread::PreProcessTile()
 						++refIndexIndex;
 					}
 				}
-				else
+				else // Tile partially inside the triangle.
 				{
 					uint32_t &refIndexIndex = tile.m_pIndexBufferSize[m_iThread];
 					tile.m_ppFaceIndexBuffer[m_iThread][refIndexIndex] = iFaceID;
@@ -504,7 +505,7 @@ void Arti3DThread::PreProcessTile()
 				// If This Tile Is Not Already Added To The Job Queue, Add It And Set The Flag.
 				if (!tile.m_bAddedToJobQueue.test_and_set())
 				{
-					m_pParent->m_pJobQueue[m_pParent->m_iJobEnd++] = iTile;
+					m_pDevice->m_pJobQueue[m_pDevice->m_iJobEnd++] = iTile;
 				}
 			}
 		}
@@ -515,7 +516,7 @@ void Arti3DThread::RasterizeTile(Arti3DTile *io_pTile)
 {
 	for (int i = 0; i < ARTI3D_MAX_THREAD; ++i)
 	{
-		PArti3DThread tmpThread = &m_pParent->m_pThreads[i];
+		PArti3DThread tmpThread = &m_pDevice->m_pThreads[i];
 		
 		for (uint32_t j = 0; j < io_pTile->m_pIndexBufferSize[i]; ++j)
 		{
@@ -725,18 +726,18 @@ void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
 	__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
 	__m128 C1 = _mm_set_ps1(4.0f);
 
-	PArti3DThread pThread = &m_pParent->m_pThreads[i_pFrag->threadID];
+	PArti3DThread pThread = &m_pDevice->m_pThreads[i_pFrag->threadID];
 	Arti3DTransformedFace *f = &pThread->m_pTransformedFace[i_pFrag->faceID];
 
-	Arti3DSurface *pbb = m_pParent->m_pRenderTarget->m_pBackbuffer;
+	Arti3DSurface *pbb = m_pDevice->m_pRenderTarget->m_pBackbuffer;
 	void *pixels = pbb->pGetPixelsDataPtr();
 	int wp = pbb->iGetWidth();
 
-	Arti3DSurface *pzb = m_pParent->m_pRenderTarget->m_pZBuffer;
+	Arti3DSurface *pzb = m_pDevice->m_pRenderTarget->m_pZBuffer;
 	void *depths = pzb->pGetPixelsDataPtr();
 	int wz = pzb->iGetWidth();
 
-	PArti3DPixelShader pPixelShader = m_pParent->mRC.pPixelShader;
+	PArti3DPixelShader pPixelShader = m_pDevice->mRC.pPixelShader;
 	
 	float *depthBuffer = nullptr;
 	uint32_t *colorBuffer = nullptr;
@@ -745,6 +746,8 @@ void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
 	{
 		colorBuffer = (uint32_t*)pixels + i_pFrag->y * wp + x;
 		depthBuffer = (float*)depths + i_pFrag->y * wz + x;
+
+		Arti3DShaderUniform *pUniform = &m_pDevice->mRC.globals;
 
 		for (int y = i_pFrag->y; y < i_pFrag->y + g_ciTileSize; ++y)
 		{
@@ -767,7 +770,7 @@ void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
 			if (_mm_movemask_ps(*(__m128*)&dbmask))
 			{
 				PreInterpolateVaryings(W0, V0, ps_param.Varyings);
-				pPixelShader->Execute(&ps_param);
+				pPixelShader->Execute(pUniform,&ps_param);
 
 				nquad = ConvertColorFormat(ps_param.Output);
 
@@ -791,7 +794,7 @@ void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
 			{
 				PreInterpolateVaryings(W1, V1, ps_param.Varyings);
 
-				pPixelShader->Execute(&ps_param);
+				pPixelShader->Execute(pUniform,&ps_param);
 
 				nquad = ConvertColorFormat(ps_param.Output);
 
@@ -819,21 +822,23 @@ void Arti3DThread::RenderBlockFragments(Arti3DFragment *i_pFrag)
 	__m128 C0 = _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
 	__m128 C1 = _mm_set_ps1(4.0f);
 
-	PArti3DThread pThread = &m_pParent->m_pThreads[i_pFrag->threadID];
+	PArti3DThread pThread = &m_pDevice->m_pThreads[i_pFrag->threadID];
 	Arti3DTransformedFace *f = &pThread->m_pTransformedFace[i_pFrag->faceID];
 
-	Arti3DSurface *pbb = m_pParent->m_pRenderTarget->m_pBackbuffer;
+	Arti3DSurface *pbb = m_pDevice->m_pRenderTarget->m_pBackbuffer;
 	void *pixels = pbb->pGetPixelsDataPtr();
 	int wp = pbb->iGetWidth();
 
-	Arti3DSurface *pzb = m_pParent->m_pRenderTarget->m_pZBuffer;
+	Arti3DSurface *pzb = m_pDevice->m_pRenderTarget->m_pZBuffer;
 	void *depths = pzb->pGetPixelsDataPtr();
 	int wz = pzb->iGetWidth();
 
-	PArti3DPixelShader pPixelShader = m_pParent->mRC.pPixelShader;
+	PArti3DPixelShader pPixelShader = m_pDevice->mRC.pPixelShader;
 	
 	float *depthBuffer = (float*)depths + wz * i_pFrag->y + i_pFrag->x;
 	uint32_t *colorBuffer = (uint32_t *)pixels + wp * i_pFrag->y + i_pFrag->x;
+
+	Arti3DShaderUniform *pUniform = &m_pDevice->mRC.globals;
 
 	for (int y = i_pFrag->y; y < i_pFrag->y + g_ciBlockSize; ++y)
 	{
@@ -855,7 +860,7 @@ void Arti3DThread::RenderBlockFragments(Arti3DFragment *i_pFrag)
 		if (_mm_movemask_ps(*(__m128*)&dbmask))
 		{
 			PreInterpolateVaryings(W0, V0, ps_param.Varyings);
-			pPixelShader->Execute(&ps_param);
+			pPixelShader->Execute(pUniform,&ps_param);
 
 			nquad = ConvertColorFormat(ps_param.Output);
 
@@ -879,7 +884,7 @@ void Arti3DThread::RenderBlockFragments(Arti3DFragment *i_pFrag)
 		{
 			PreInterpolateVaryings(W1, V1, ps_param.Varyings);
 
-			pPixelShader->Execute(&ps_param);
+			pPixelShader->Execute(pUniform,&ps_param);
 
 			nquad = ConvertColorFormat(ps_param.Output);
 
@@ -906,18 +911,18 @@ void Arti3DThread::RenderMaskedFragments(Arti3DFragment *i_pFrag)
 	__m128 C1 = _mm_set_ps1(4.0f);
 	__m128i iMask = _mm_set_epi32(8, 4, 2, 1);
 
-	PArti3DThread pThread = &m_pParent->m_pThreads[i_pFrag->threadID];
+	PArti3DThread pThread = &m_pDevice->m_pThreads[i_pFrag->threadID];
 	Arti3DTransformedFace *f = &pThread->m_pTransformedFace[i_pFrag->faceID];
 
-	Arti3DSurface *pbb = m_pParent->m_pRenderTarget->m_pBackbuffer;
+	Arti3DSurface *pbb = m_pDevice->m_pRenderTarget->m_pBackbuffer;
 	void *pixels = pbb->pGetPixelsDataPtr();
 	int wp = pbb->iGetWidth();
 
-	Arti3DSurface *pzb = m_pParent->m_pRenderTarget->m_pZBuffer;
+	Arti3DSurface *pzb = m_pDevice->m_pRenderTarget->m_pZBuffer;
 	void *depths = pzb->pGetPixelsDataPtr();
 	int wz = pzb->iGetWidth();
 
-	PArti3DPixelShader pPixelShader = m_pParent->mRC.pPixelShader;
+	PArti3DPixelShader pPixelShader = m_pDevice->mRC.pPixelShader;
 
 	float *depthBuffer = (float*)depths + wz * i_pFrag->y + i_pFrag->x;
 	uint32_t *colorBuffer = (uint32_t *)pixels + wp * i_pFrag->y + i_pFrag->x;
@@ -944,7 +949,7 @@ void Arti3DThread::RenderMaskedFragments(Arti3DFragment *i_pFrag)
 	if (_mm_movemask_ps(*(__m128*)&dbmask))
 	{
 		PreInterpolateVaryings(W0, V0, ps_param.Varyings);
-		pPixelShader->Execute(&ps_param);
+		pPixelShader->Execute(&m_pDevice->mRC.globals,&ps_param);
 
 		nquad = ConvertColorFormat(ps_param.Output);
 

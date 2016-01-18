@@ -62,7 +62,7 @@ Arti3DResult Arti3DTile::Create(uint32_t i_iX, uint32_t i_iY, uint32_t i_iWidth,
 	for (int i = 0; i < ARTI3D_MAX_THREAD; ++i)
 	{
 		m_ppTileCoverage[i] = new Arti3DTileCoverage[ARTI3D_MAX_FACE_PER_TILE];
-		if (!m_ppTileCoverage)
+		if (!m_ppTileCoverage[i])
 			return ARTI3D_OUT_OF_MEMORY;
 	}
 

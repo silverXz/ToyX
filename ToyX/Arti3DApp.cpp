@@ -97,6 +97,7 @@ void Arti3DApp::RenderScene()
 		rotAngle -= a3d::TWOPI;
 
 	m_pDevice->SetMatrix(ARTI3D_MATRIX_MODEL, a3d::rotate(rotAngle, a3d::vec3(0.0f, 1.0f, 0.0f)));
+	//m_pDevice->SetMatrix(ARTI3D_MATRIX_MODEL, a3d::rotate(a3d::HALFPI/2.0f, a3d::vec3(0.0f, 1.0f, 0.0f)));;
 	m_pDevice->SetMatrix(ARTI3D_MATRIX_VIEW, a3d::lookAt(a3d::vec3(4.0f, 4.0f, 4.0f), a3d::vec3(0.0f, 0.0f, 0.0f), a3d::vec3(0.0f, 1.0f, 0.0f)));
 	m_pDevice->SetMatrix(ARTI3D_MATRIX_PROJECTION, a3d::perspective(90.0f, (float)m_pWindow->m_iWidth / m_pWindow->m_iHeight, 0.1f, 15.0f));
 	m_pDevice->SetViewport(0, 0, m_pWindow->m_iWidth, m_pWindow->m_iHeight);
@@ -107,8 +108,9 @@ void Arti3DApp::RenderScene()
 	m_pDevice->ClearColorBuffer(a3d::vec4(0.0f, 0.0f, 0.0f, 1.0f));
 	m_pDevice->ClearDepthBuffer();
 	
-	m_pVertexShader->Use();
-	m_pPixelShader->Use();
+	m_pDevice->SetVertexShader(m_pVertexShader);
+	m_pDevice->SetPixelShader(m_pPixelShader);
+
 	m_pMesh->Render();
 	
 	m_pDevice->End();
@@ -187,8 +189,8 @@ void Arti3DApp::SetupScene()
 	m_pMesh = new Arti3DMesh(m_pDevice);
 	m_pMesh->CreateColorCube();
 
-	m_pVertexShader = new SimpleCubeVS(m_pDevice);
-	m_pPixelShader = new SimpleCubePS(m_pDevice);
+	m_pVertexShader = new SimpleCubeVS();
+	m_pPixelShader = new SimpleCubePS();
 
 	m_pDevice->DistributeThreadWorkload();
 }
@@ -214,9 +216,33 @@ void Arti3DApp::SetupScene2()
 	m_pMesh = new Arti3DMesh(m_pDevice);
 	m_pMesh->CreateTextureCube();
 
-	m_pVertexShader = new CheckboardCubeVS(m_pDevice);
-	m_pPixelShader = new CheckboardCubePS(m_pDevice);
+	m_pVertexShader = new CheckboardCubeVS();
+	m_pPixelShader = new CheckboardCubePS();
 	
 	m_pDevice->DistributeThreadWorkload();
 		
+}
+
+void Arti3DApp::SetupScene3()
+{
+	m_pMesh = new Arti3DMesh(m_pDevice);
+	m_pMesh->CreatePhongCube();
+
+	PhongVS *pVS = new PhongVS();
+	PhongPS *pPS = new PhongPS();
+
+	m_pVertexShader = pVS;
+	m_pPixelShader = pPS;
+
+	Arti3DMaterial& material = m_pDevice->mRC.globals.material;
+	material.vAmbient = a3d::vec3(0.2f, 0.2f, 0.2f);
+	material.vDiffuse = a3d::vec3(0.9f, 0.2f, 0.5f);
+	material.vSpecular = a3d::vec3(0.5f, 0.5f, 0.5f);
+	material.fShinness = 23.0f;
+
+	Arti3DLight& light = m_pDevice->mRC.globals.lights[0];
+	light.vPosition = a3d::vec3(5.0f, 5.0f, 5.0f);
+	light.vIntensity = a3d::vec3(0.5f, 0.5f, 0.5f);
+
+	m_pDevice->DistributeThreadWorkload();
 }
