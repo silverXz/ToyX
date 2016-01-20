@@ -89,6 +89,11 @@ public:
 	// @param pFilepath : pointer to file path.
 	Arti3DResult CreateRGBSurface(Arti3DSurface **o_pSurface, const char *pFilepath);
 
+	// Create Cube Texture from file.
+	// @param o_pCubeTexture : pointer to pointer to Arti3DCubeTexture.
+	// @param pFilePaths : pointer to array of file paths.
+	Arti3DResult CreateCubeTexture(Arti3DCubeTexture **o_pCubeTexture, const char **pFilePaths);
+
 
 	// Create Surface Associated With Some Windows For Backbuffer.
 	// @param pWindow : pointer to the window that the surface associated with.
@@ -121,6 +126,7 @@ public:
 	Arti3DResult BindIndexBuffer(Arti3DIndexBuffer *pIndexBuffer);
 
 	Arti3DResult AttachTextureUnit(PArti3DSurface pSurface, int iTexUint);
+	Arti3DResult AttachTextureUnit(Arti3DCubeTexture *pCubeTexture, int iTexUint);
 
 	void SetVertexShader(PArti3DVertexShader pVertexShader)
 	{

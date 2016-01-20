@@ -7,6 +7,7 @@ class Arti3DWindow;
 class Arti3DDevice;
 class Arti3DRenderTarget;
 class Arti3DSurface;
+class Arti3DCubeTexture;
 class Arti3DVertexBuffer;
 class Arti3DVertexLayout;
 class Arti3DIndexBuffer;

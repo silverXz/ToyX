@@ -204,6 +204,16 @@ inline __m128 SSE_Clamp(__m128 val, __m128 fMin, __m128 fMax)
 	return _mm_max_ps(_mm_min_ps(val, fMax), fMin);
 }
 
+inline __m128 SSE_Abs(__m128 a)
+{
+	return _mm_and_ps(a, *(__m128*)&_mm_set1_epi32(0x7FFFFFFF));
+}
+
+inline __m128 SSE_Negative(__m128 a)
+{
+	return _mm_xor_ps(a, *(__m128*)&_mm_set1_epi32(0x80000000));
+}
+
 inline SSE_Float SSE_Max(const SSE_Float& f1, const SSE_Float& f2)
 {
 	return SSE_Float(_mm_max_ps(f1.f, f2.f));

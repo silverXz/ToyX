@@ -18,6 +18,7 @@
 #include "Arti3D_Tile.h"
 #include "Arti3D_Surface.h"
 #include "Arti3D_ShaderBase.h"
+#include "Arti3D_CubeTexture.h"
 
 
 using namespace a3d;
@@ -568,6 +569,26 @@ Arti3DResult Arti3DDevice::AttachTextureUnit(PArti3DSurface pSurface, int iTexUi
 		return ARTI3D_INVALID_PARAMETER;
 
 	mRC.globals.pSurfaces[iTexUint] = pSurface;
+
+	return ARTI3D_OK;
+}
+
+Arti3DResult Arti3DDevice::AttachTextureUnit(Arti3DCubeTexture *pCubeTexture, int iTexUint)
+{
+	if (!pCubeTexture || iTexUint >= ARTI3D_MAX_CUBE_TEXTURE_UNIT || iTexUint < 0)
+		return ARTI3D_INVALID_PARAMETER;
+
+	mRC.globals.pCubeTextures[iTexUint] = pCubeTexture;
+
+	return ARTI3D_OK;
+}
+
+Arti3DResult Arti3DDevice::CreateCubeTexture(Arti3DCubeTexture **o_pCubeTexture, const char **pFilePaths)
+{
+	if (!o_pCubeTexture || !pFilePaths)
+		return ARTI3D_INVALID_PARAMETER;
+	*o_pCubeTexture = new Arti3DCubeTexture(this);
+	(*o_pCubeTexture)->Create(pFilePaths);
 
 	return ARTI3D_OK;
 }

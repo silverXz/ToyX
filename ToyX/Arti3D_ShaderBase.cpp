@@ -55,3 +55,78 @@ SSE_Color3 Arti3DPixelShader::SampleTexture(Arti3DSurface *pSurface, SSE_Float& 
 
 	return retVal;
 }
+
+SSE_Color3 Arti3DPixelShader::SampleCubeTexture(Arti3DCubeTexture *pCubeTexture, SSE_Float &fU, SSE_Float &fV, SSE_Float &fW)
+{
+	__m128 fZero = _mm_set1_ps(0.0f);
+	__m128 fOne = _mm_set1_ps(1.0f);
+	__m128 fCU = fZero, fCV = fZero, fInvMag = fZero;
+
+	__m128 fAbsU = SSE_Abs(fU);
+	__m128 fAbsV = SSE_Abs(fV);
+	__m128 fAbsW = SSE_Abs(fW);
+
+	__m128 fInvAbsU = _mm_div_ps(fOne, fAbsU);
+	__m128 fInvAbsV = _mm_div_ps(fOne, fAbsV);
+	__m128 fInvAbsW = _mm_div_ps(fOne, fAbsW);
+
+	// The first If.
+	__m128i iUgeV = *(__m128i*)&_mm_cmpge_ps(fAbsU, fAbsV);
+	__m128i iUgeW = *(__m128i*)&_mm_cmpge_ps(fAbsU, fAbsW);
+	__m128i iUVW = _mm_and_si128(iUgeV, iUgeW);
+
+	__m128i iUge0 = *(__m128i*)&_mm_cmpge_ps(fU, fZero);
+	__m128i iReady = _mm_and_si128(iUVW, iUge0);
+	fCU = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&SSE_Negative(fW)), *(__m128i*)&fCU);
+	fCV = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&SSE_Negative(fV)), *(__m128i*)&fCV);
+	fInvMag = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&fInvAbsU), *(__m128i*)&fInvMag);
+
+	__m128i iUlt0 = *(__m128i*)&_mm_cmplt_ps(fU, fZero);
+	iReady = _mm_and_si128(iUVW, iUlt0);
+	fCU = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&fW), *(__m128i*)&fCU);
+	fCV = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&SSE_Negative(fV)), *(__m128i*)&fCV);
+	fInvMag = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&fInvAbsU), *(__m128i*)&fInvMag);
+
+	int cond = _mm_movemask_ps(*(__m128*)&iUVW);
+	// if (cond == 15) we don't have to consider other conditioins.
+
+	// The second If.
+	__m128i iVgeU = *(__m128i*)&_mm_cmpge_ps(fAbsV, fAbsU);
+	__m128i iVgeW = *(__m128i*)&_mm_cmpge_ps(fAbsV, fAbsW);
+	__m128i iVUW = _mm_and_si128(iVgeU, iVgeW);
+
+	__m128i iVge0 = *(__m128i*)&_mm_cmpge_ps(fV, fZero);
+	iReady = _mm_and_si128(iVUW, iVge0);
+	fCU = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&fU), *(__m128i*)&fCU);
+	fCV = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&fW), *(__m128i*)&fCV);
+	fInvMag = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&fInvAbsV), *(__m128i*)&fInvMag);
+
+	__m128i iVlt0 = *(__m128i*)&_mm_cmplt_ps(fV, fZero);
+	iReady = _mm_and_si128(iVUW, iVlt0);
+	fCU = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&fU), *(__m128i*)&fCU);
+	fCV = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&SSE_Negative(fW)), *(__m128i*)&fCV);
+	fInvMag = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&fInvAbsV), *(__m128i*)&fInvMag);
+
+	// The 3rd If.
+	__m128i iWgeU = *(__m128i*)&_mm_cmpge_ps(fAbsW, fAbsU);
+	__m128i iWgeV = *(__m128i*)&_mm_cmpge_ps(fAbsW, fAbsV);
+	__m128i iWUV = _mm_and_si128(iWgeU, iWgeV);
+
+	__m128i iWge0 = *(__m128i*)&_mm_cmpge_ps(fW, fZero);
+	iReady = _mm_and_si128(iWUV, iWge0);
+	fCU = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&fU), *(__m128i*)&fCU);
+	fCV = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&SSE_Negative(fV)), *(__m128i*)&fCV);
+	fInvMag = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&fInvAbsW), *(__m128i*)&fInvMag);
+
+	__m128i iWlt0 = *(__m128i*)&_mm_cmplt_ps(fW, fZero);
+	iReady = _mm_and_si128(iWUV, iWlt0);
+	fCU = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&SSE_Negative(fU)), *(__m128i*)&fCU);
+	fCV = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&SSE_Negative(fV)), *(__m128i*)&fCV);
+	fInvMag = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady, *(__m128i*)&fInvAbsW), *(__m128i*)&fInvMag);
+
+	__m128 fHalf = _mm_set_ps1(0.5f);
+	__m128 tU = _mm_add_ps(_mm_mul_ps(fCU, _mm_mul_ps(fInvMag, fHalf)), fHalf);
+	__m128 tV = _mm_add_ps(_mm_mul_ps(fCV, _mm_mul_ps(fInvMag, fHalf)), fHalf);
+
+	// To Be Done.
+}

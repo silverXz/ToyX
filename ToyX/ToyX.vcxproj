@@ -91,6 +91,7 @@
   <ItemGroup>
     <ClInclude Include="Arti3D.h" />
     <ClInclude Include="Arti3DApp.h" />
+    <ClInclude Include="Arti3D_CubeTexture.h" />
     <ClInclude Include="Arti3D_ForwardDecl.h" />
     <ClInclude Include="Arti3D_IndexBuffer.h" />
     <ClInclude Include="Arti3D_Mesh.h" />
@@ -113,6 +114,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Arti3DApp.cpp" />
+    <ClCompile Include="Arti3D_CubeTexture.cpp" />
     <ClCompile Include="Arti3D_IndexBuffer.cpp" />
     <ClCompile Include="Arti3D_Mesh.cpp" />
     <ClCompile Include="Arti3D_RenderTarget.cpp" />

@@ -52,6 +52,10 @@ void Arti3DApp::Run()
 
 Arti3DResult Arti3DApp::Init()
 {
+	// Turn on all float point exceptions except inexact exceptions.
+	_MM_SET_EXCEPTION_MASK(0);
+	_MM_SET_EXCEPTION_MASK(_MM_MASK_INEXACT);
+
 	if (SDL_Init(SDL_INIT_VIDEO) != 0)
 	{
 		fprintf_s(stderr, "SDL_Init Failed!\n");
@@ -241,7 +245,7 @@ void Arti3DApp::SetupScene3()
 	material.fShinness = 23.0f;
 
 	Arti3DLight& light = m_pDevice->mRC.globals.lights[0];
-	light.vPosition = a3d::vec3(5.0f, 5.0f, 5.0f);
+	light.vPosition = a3d::vec3(10.0f, 10.0f, 10.0f);
 	light.vIntensity = a3d::vec3(0.5f, 0.5f, 0.5f);
 
 	m_pDevice->DistributeThreadWorkload();

@@ -26,7 +26,8 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (ARTI3D_OK != a3dApp->Init())
 		return -1;
 
-	a3dApp->SetupScene3();
+	a3dApp->SetupScene2();
+	//a3dApp->SetupScene3();
 
 	a3dApp->Run();
 

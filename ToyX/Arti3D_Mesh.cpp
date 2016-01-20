@@ -157,6 +157,21 @@ void Arti3DMesh::CreateTextureCube()
 	//CreateCheckboardTexture(&pSurface, iTexWidth, iTexHeight);
 
 	m_pDevice->AttachTextureUnit(pSurface, 0);
+
+	// Load Cube Texture For Test/
+
+	Arti3DCubeTexture *pCubeTexture = nullptr;
+	const char *pFilePaths[] = {
+		"Resource\\Cubemap\\posx.jpg",
+		"Resource\\Cubemap\\negx.jpg",
+		"Resource\\Cubemap\\posy.jpg",
+		"Resource\\Cubemap\\negy.jpg",
+		"Resource\\Cubemap\\posz.jpg",
+		"Resource\\Cubemap\\negz.jpg",
+	};
+	m_pDevice->CreateCubeTexture(&pCubeTexture, pFilePaths);
+	m_pDevice->AttachTextureUnit(pCubeTexture, 0);
+
 }
 
 void Arti3DMesh::CreatePhongCube()

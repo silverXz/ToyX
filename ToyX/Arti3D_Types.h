@@ -22,6 +22,8 @@ const int ARTI3D_MAX_CLIP_VERTEX	= 9;
 const int ARTI3D_MAX_THREAD			= 8;
 const int ARTI3D_MAX_TEXTURE_UNIT	= 8;
 
+const int ARTI3D_MAX_CUBE_TEXTURE_UNIT = 4;
+
 const int ARTI3D_MAX_LIGHT = 8;
 
 
@@ -97,7 +99,10 @@ struct Arti3DShaderUniform
 	// Material Info.
 	Arti3DMaterial	material;
 	// texture slots.
-	PArti3DSurface	pSurfaces[ARTI3D_MAX_TEXTURE_UNIT];		
+	PArti3DSurface	pSurfaces[ARTI3D_MAX_TEXTURE_UNIT];	
+	// Cube texture slots
+	Arti3DCubeTexture *pCubeTextures[ARTI3D_MAX_CUBE_TEXTURE_UNIT];
+
 };
 
 enum Arti3DVertexAttributeFormat

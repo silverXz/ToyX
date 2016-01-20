@@ -108,6 +108,9 @@
     <ClInclude Include="Arti3D_Mesh.h">
       <Filter>Arti3D_Resource</Filter>
     </ClInclude>
+    <ClInclude Include="Arti3D_CubeTexture.h">
+      <Filter>Arti3D_Core\Header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -154,6 +157,9 @@
     </ClCompile>
     <ClCompile Include="Arti3D_Mesh.cpp">
       <Filter>Arti3D_Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="Arti3D_CubeTexture.cpp">
+      <Filter>Arti3D_Core\Source</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

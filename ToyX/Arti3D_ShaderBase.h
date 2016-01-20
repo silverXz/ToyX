@@ -65,6 +65,7 @@ public:
 
 protected:
 	SSE_Color3	SampleTexture(Arti3DSurface *pSurface, SSE_Float& fU, SSE_Float& fV);
+	SSE_Color3  SampleCubeTexture(Arti3DCubeTexture *pCubeTexture, SSE_Float &fU, SSE_Float &fV, SSE_Float &fW);
 };
 
 
