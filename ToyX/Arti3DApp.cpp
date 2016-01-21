@@ -250,3 +250,17 @@ void Arti3DApp::SetupScene3()
 
 	m_pDevice->DistributeThreadWorkload();
 }
+
+void Arti3DApp::SetupScene4()
+{
+	m_pMesh = new Arti3DMesh(m_pDevice);
+	m_pMesh->CreateSkybox();
+
+	SkyboxVS *pVS = new SkyboxVS();
+	SkyboxPS *pPS = new SkyboxPS();
+
+	m_pVertexShader = pVS;
+	m_pPixelShader = pPS;
+
+	m_pDevice->DistributeThreadWorkload();
+}

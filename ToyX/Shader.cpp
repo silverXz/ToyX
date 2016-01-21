@@ -103,3 +103,23 @@ void PhongPS::Execute(Arti3DShaderUniform *i_pUnform, Arti3DPSParam *io_pPSParam
 
 	io_pPSParam->Output = vLightIntensity * (vAmbient + vDiffuse + vSpecular);
 }
+
+void SkyboxVS::Execute(Arti3DVSInput *i_pVSInput, Arti3DShaderUniform* i_pUniform, Arti3DVSOutput *o_pVSOutput)
+{
+	// The input is already in NDC.
+	o_pVSOutput->p = i_pVSInput->ShaderInputs[0];
+
+	// Generate view direction for this vetex.
+	a3d::vec3 viewDir = a3d::vec3(o_pVSOutput->p.x, o_pVSOutput->p.y, o_pVSOutput->p.z);
+	viewDir = a3d::normalize(viewDir);
+
+	o_pVSOutput->varyings[0] = viewDir.x;
+	o_pVSOutput->varyings[1] = viewDir.y;
+	o_pVSOutput->varyings[2] = viewDir.z;
+}
+
+void SkyboxPS::Execute(Arti3DShaderUniform *i_pUniform, Arti3DPSParam *io_pPSParam)
+{
+	Arti3DCubeTexture *pCubeTexture = i_pUniform->pCubeTextures[0];
+	io_pPSParam->Output = SampleCubeTexture(pCubeTexture, io_pPSParam->Varyings[0], io_pPSParam->Varyings[1],io_pPSParam->Varyings[2]);
+}
