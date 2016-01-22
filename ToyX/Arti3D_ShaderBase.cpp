@@ -74,6 +74,20 @@ SSE_Color3 Arti3DPixelShader::SampleCubeTexture(Arti3DCubeTexture *pCubeTexture,
 	__m128 fInvAbsV = _mm_div_ps(fOne, fAbsV);
 	__m128 fInvAbsW = _mm_div_ps(fOne, fAbsW);
 
+
+	// Note that !
+	// Cube texture selection reference to opengl specification 2.0 pp.168.
+	// The cube is centered at the origin and in right-hand coordinates. 
+	// Let's just say it's in camera space. And according to opengl specification,
+	// the origin of texture coordinate is at the top-left corner of every coord.
+	// Major Axis Direction // Target		// Sc	// Tc	// Ma
+	//		+Rx				// Positive X	// -Rz	// -Ry	// Rx
+	//		-Rx				// Negative X	// Rz	// -Ry	// Rx
+	//		+Ry				// Positive Y	// Rx	// Rz	// Ry
+	//		-Ry				// Negative Y	// Rx	// -Rz	// Ry
+	//		+Rz				// Positive Z	// Rx	// -Ry	// Rz
+	//		-Rz				// Negative Z	// -Rx	// -Ry	// Rz
+
 	// If U dominate.
 	__m128i iUgeV = *(__m128i*)&_mm_cmpge_ps(fAbsU, fAbsV);
 	__m128i iUgeW = *(__m128i*)&_mm_cmpge_ps(fAbsU, fAbsW);
@@ -85,22 +99,23 @@ SSE_Color3 Arti3DPixelShader::SampleCubeTexture(Arti3DCubeTexture *pCubeTexture,
 	// Sample Positive X.
 	__m128i iUge0 = *(__m128i*)&_mm_cmpge_ps(fU, fZero);
 	__m128i iReady_posx = _mm_and_si128(iUVW, iUge0);
+
 	fCU = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady_posx, *(__m128i*)&SSE_Negative(fW)), *(__m128i*)&fCU);
-	fCV = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady_posx, *(__m128i*)&SSE_Negative(fV)), *(__m128i*)&fCV);
+ 	fCV = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady_posx, *(__m128i*)&SSE_Negative(fV)), *(__m128i*)&fCV);
 	iTexID = _mm_or_si128(_mm_and_si128(iReady_posx, _mm_set1_epi32(0)), iTexID);
 	fInvMag = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady_posx, *(__m128i*)&fInvAbsU), *(__m128i*)&fInvMag);
 
 	// Sample Negative X.
 	__m128i iUlt0 = *(__m128i*)&_mm_cmplt_ps(fU, fZero);
 	__m128i iReady_negx = _mm_and_si128(iUVW, iUlt0);
-	fCU = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady_negx, *(__m128i*)&fW), *(__m128i*)&fCU);
-	fCV = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady_negx, *(__m128i*)&SSE_Negative(fV)), *(__m128i*)&fCV);
+ 	fCU = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady_negx, *(__m128i*)&fW), *(__m128i*)&fCU);
+ 	fCV = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady_negx, *(__m128i*)&SSE_Negative(fV)), *(__m128i*)&fCV);
 	iTexID = _mm_or_si128(_mm_and_si128(iReady_negx, _mm_set1_epi32(1)), iTexID);
 	fInvMag = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady_negx, *(__m128i*)&fInvAbsU), *(__m128i*)&fInvMag);
 
-// 	int left2calc = _mm_movemask_ps(*(__m128*)&iLeft);
-// 	if (left2calc != 0) // we don't have to consider other conditioins.
-// 	{
+	int left2calc = _mm_movemask_ps(*(__m128*)&iLeft);
+	if (left2calc != 0) // we don't have to consider other conditioins.
+	{ 
 		// If V dominate.
 		__m128i iVgeU = *(__m128i*)&_mm_cmpge_ps(fAbsV, fAbsU);
 		__m128i iVgeW = *(__m128i*)&_mm_cmpge_ps(fAbsV, fAbsW);
@@ -123,9 +138,9 @@ SSE_Color3 Arti3DPixelShader::SampleCubeTexture(Arti3DCubeTexture *pCubeTexture,
 		fInvMag = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady_negy, *(__m128i*)&fInvAbsV), *(__m128i*)&fInvMag);
 		
 		iLeft = _mm_xor_si128(_mm_or_si128(iVUW, iUVW), _mm_set1_epi32(0xFFFFFFFF));
-//		left2calc = _mm_movemask_ps(*(__m128*)&iLeft);
-// 		if (left2calc != 0)
-// 		{
+		left2calc = _mm_movemask_ps(*(__m128*)&iLeft);
+		if (left2calc != 0)
+		{
 			// If W dominate.
 			__m128i iWgeU = *(__m128i*)&_mm_cmpge_ps(fAbsW, fAbsU);
 			__m128i iWgeV = *(__m128i*)&_mm_cmpge_ps(fAbsW, fAbsV);
@@ -142,17 +157,19 @@ SSE_Color3 Arti3DPixelShader::SampleCubeTexture(Arti3DCubeTexture *pCubeTexture,
 			// Sample Negative Z.
 			__m128i iWlt0 = *(__m128i*)&_mm_cmplt_ps(fW, fZero);
 			__m128i iReady_negz = _mm_and_si128(iWUV, iWlt0);
-			fCU = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady_negz, *(__m128i*)&SSE_Negative(fU)), *(__m128i*)&fCU);
-			fCV = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady_negz, *(__m128i*)&SSE_Negative(fV)), *(__m128i*)&fCV);
+ 			fCU = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady_negz, *(__m128i*)&SSE_Negative(fU)), *(__m128i*)&fCU);
+ 			fCV = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady_negz, *(__m128i*)&SSE_Negative(fV)), *(__m128i*)&fCV);
 			iTexID = _mm_or_si128(_mm_and_si128(iReady_negz, _mm_set1_epi32(5)), iTexID);
 			fInvMag = *(__m128*)&_mm_or_si128(_mm_and_si128(iReady_negz, *(__m128i*)&fInvAbsW), *(__m128i*)&fInvMag);
-// 		}
-// 	}
+		}
+	}
 
 	// Translate to valid texture coordinates.
 	__m128 fHalf = _mm_set_ps1(0.5f);
-	__m128 tU = _mm_add_ps(_mm_mul_ps(fCU, _mm_mul_ps(fInvMag, fHalf)), fHalf);
-	__m128 tV = _mm_add_ps(_mm_mul_ps(fCV, _mm_mul_ps(fInvMag, fHalf)), fHalf);
+// 	__m128 tU = _mm_add_ps(_mm_mul_ps(fCU, _mm_mul_ps(fInvMag, fHalf)), fHalf);
+// 	__m128 tV = _mm_add_ps(_mm_mul_ps(fCV, _mm_mul_ps(fInvMag, fHalf)), fHalf);
+	__m128 tU = _mm_sub_ps(fOne, _mm_add_ps(_mm_mul_ps(fCU, _mm_mul_ps(fInvMag, fHalf)), fHalf));
+	__m128 tV = _mm_sub_ps(fOne, _mm_add_ps(_mm_mul_ps(fCV, _mm_mul_ps(fInvMag, fHalf)), fHalf));
 
 	//.........................................................................................
 	// To Be Done.
@@ -160,6 +177,7 @@ SSE_Color3 Arti3DPixelShader::SampleCubeTexture(Arti3DCubeTexture *pCubeTexture,
 	int id1 = _mm_extract_epi32(iTexID, 1);
 	int id2 = _mm_extract_epi32(iTexID, 2);
 	int id3 = _mm_extract_epi32(iTexID, 3);
+	//printf("%d.%d.%d.%d.", id0, id1, id2, id3);
 
 	__m128 xfU = SSE_Clamp(tU, fZero, fOne);
 	__m128 xfV = SSE_Clamp(tV, fZero, fOne);

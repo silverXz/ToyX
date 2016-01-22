@@ -287,46 +287,25 @@ void Arti3DMesh::CreateSkybox()
 		return;
 
 	// Create Cube Data.
-	const float len = 0.5f;
+	const float len = 500.0f;
 
-	// NDC Coordinatess
+	// World Space
 	std::vector<std::vector<float>> xv{
-		{ -len, len, len, 1.0f, 1.0f, 1.0f },	//0,0 - z-
-		{ len, len, len, 1.0f, 0.0f, 1.0f },    //1,1 - z-
-		{ len, -len, len, 1.0f, 0.0f, 0.0f },	//2,5 - z-
-		{ -len, -len, len, 1.0f, 1.0f, 0.0f },	//3,4 - z-
-		
-		{ len, len, len, 1.0f, 1.0f, 1.0f },	//4,1 - x+
-		{ len, len, -len, 1.0f, 0.0f, 1.0f },	//5,2 - x+
-		{ len, -len, -len, 1.0f, 0.0f, 0.0f },	//6,6 - x+
-		{ len, -len, len, 1.0f, 1.0f, 0.0f },	//7,5 - x+
-
-		{ len, len, -len, 1.0f, 1.0f, 1.0f },	//8,2 - z+
-		{ -len, len, -len, 1.0f, 0.0f, 1.0f },	//9,3 - z+
-		{ -len, -len, -len, 1.0f, 0.0f, 0.0f },	//10,7 - z+
-		{ len, -len, -len, 1.0f, 1.0f, 0.0f },	//11,6 - z+
-
-		{ -len, len, -len, 1.0f, 1.0f, 1.0f },	//12,3 - x-
-		{ -len, len, len, 1.0f, 0.0f, 1.0f },	//13,0 - x-
-		{ -len, -len, len, 1.0f, 0.0f, 0.0f },	//14,4 - x-
-		{ -len, -len, -len, 1.0f, 1.0f, 0.0f },	//15,7 - x-
-
-		{ -len, len, -len, 1.0f, 0.0f, 0.0f },	//16,3 - y+
-		{ len, len, -len, 1.0f, 1.0f, 0.0f },	//17,2 - y+
-		{ len, len, len, 1.0f, 1.0f, 1.0f },	//18,1 - y+
-		{ -len, len, len, 1.0f, 0.0f, 1.0f },	//19,0 - y+
-
-		{ -len, -len, len, 1.0f, 0.0f, 0.0f },	//20,4 - y-
-		{ len, -len, len, 1.0f, 1.0f, 0.0f },	//21,5 - y-
-		{ len, -len, -len, 1.0f, 1.0f, 1.0f },	//22,6 - y-
-		{ -len, -len, -len, 1.0f, 0.0f, 1.0f }	//23,7 - y-
+		{ -len, len, len, 1.0f },	//0 
+		{ len, len, len, 1.0f  },	//1 
+		{ len, len, -len, 1.0f },	//2 
+		{ -len, len, -len, 1.0f},	//3 
+		{ -len, -len, len, 1.0f},	//4 
+		{ len, -len, len, 1.0f },	//5 
+		{ len, -len, -len, 1.0f},	//6 
+		{ -len, -len, -len, 1.0f}	//7 
 	};
 
 	int iVertex = xv.size();
 
 	Arti3DVertexLayout *pVertexLayout = nullptr;
-	Arti3DVertexAttributeFormat vaf[] = { ARTI3D_VAF_VECTOR4, ARTI3D_VAF_VECTOR2 };
-	m_pDevice->CreateVertexLayout(&pVertexLayout, 2, vaf);
+	Arti3DVertexAttributeFormat vaf[] = { ARTI3D_VAF_VECTOR4};
+	m_pDevice->CreateVertexLayout(&pVertexLayout, 1, vaf);
 	m_pDevice->CreateVertexBuffer(&m_pVertexBuffer, pVertexLayout, iVertex);
 
 	int iStride = m_pVertexBuffer->iGetStride();
@@ -342,12 +321,14 @@ void Arti3DMesh::CreateSkybox()
 
 	// Create and upload index buffer data.
 	m_pDevice->CreateIndexBuffer(&m_pIndexBuffer, 36 * sizeof(uint32_t), ARTI3D_FORMAT_INDEX32);
-	uint32_t xid[] = { 0, 1, 2, 0, 2, 3,
-		4, 5, 6, 4, 6, 7,
-		8, 9, 10, 8, 10, 11,
-		12, 13, 14, 12, 14, 15,
-		16, 17, 18, 16, 18, 19,
-		20, 21, 22, 20, 22, 23 };
+	uint32_t xid[] = {
+		0,1,5,0,5,4,
+		1,2,6,1,6,5,
+		2,3,7,2,7,6,
+		3,0,4,3,4,7,
+		3,2,1,3,1,0,
+		4,5,6,4,6,7
+	};
 
 	void *pDest = nullptr;
 	m_pIndexBuffer->GetPointer(0, &pDest);

@@ -106,16 +106,13 @@ void PhongPS::Execute(Arti3DShaderUniform *i_pUnform, Arti3DPSParam *io_pPSParam
 
 void SkyboxVS::Execute(Arti3DVSInput *i_pVSInput, Arti3DShaderUniform* i_pUniform, Arti3DVSOutput *o_pVSOutput)
 {
-	// The input is already in NDC.
-	o_pVSOutput->p = i_pVSInput->ShaderInputs[0];
+	o_pVSOutput->p = i_pUniform->mvp * i_pVSInput->ShaderInputs[0];
 
-	// Generate view direction for this vetex.
-	a3d::vec3 viewDir = a3d::vec3(o_pVSOutput->p.x, o_pVSOutput->p.y, o_pVSOutput->p.z);
-	viewDir = a3d::normalize(viewDir);
+	a3d::vec4 pInCamera = i_pUniform->view *i_pUniform->model * i_pVSInput->ShaderInputs[0];
 
-	o_pVSOutput->varyings[0] = viewDir.x;
-	o_pVSOutput->varyings[1] = viewDir.y;
-	o_pVSOutput->varyings[2] = viewDir.z;
+	o_pVSOutput->varyings[0] = pInCamera.x;
+	o_pVSOutput->varyings[1] = pInCamera.y;
+	o_pVSOutput->varyings[2] = pInCamera.z;
 }
 
 void SkyboxPS::Execute(Arti3DShaderUniform *i_pUniform, Arti3DPSParam *io_pPSParam)
