@@ -106,13 +106,19 @@ void PhongPS::Execute(Arti3DShaderUniform *i_pUnform, Arti3DPSParam *io_pPSParam
 
 void SkyboxVS::Execute(Arti3DVSInput *i_pVSInput, Arti3DShaderUniform* i_pUniform, Arti3DVSOutput *o_pVSOutput)
 {
-	o_pVSOutput->p = i_pUniform->mvp * i_pVSInput->ShaderInputs[0];
+	const ShaderRegister &p = i_pVSInput->ShaderInputs[0];
 
-	a3d::vec4 pInCamera = i_pUniform->view *i_pUniform->model * i_pVSInput->ShaderInputs[0];
+	o_pVSOutput->p = i_pUniform->mvp * p;
 
-	o_pVSOutput->varyings[0] = pInCamera.x;
-	o_pVSOutput->varyings[1] = pInCamera.y;
-	o_pVSOutput->varyings[2] = pInCamera.z;
+	a3d::vec4 pInCamera = i_pUniform->view *i_pUniform->model * p;
+
+// 	o_pVSOutput->varyings[0] = pInCamera.x;
+// 	o_pVSOutput->varyings[1] = pInCamera.y;
+// 	o_pVSOutput->varyings[2] = pInCamera.z;
+
+	o_pVSOutput->varyings[0] = p.x;
+	o_pVSOutput->varyings[1] = p.y;
+	o_pVSOutput->varyings[2] = p.z;
 }
 
 void SkyboxPS::Execute(Arti3DShaderUniform *i_pUniform, Arti3DPSParam *io_pPSParam)

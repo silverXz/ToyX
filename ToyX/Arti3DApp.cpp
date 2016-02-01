@@ -103,9 +103,9 @@ void Arti3DApp::RenderScene()
 	//m_pDevice->SetMatrix(ARTI3D_MATRIX_MODEL, a3d::rotate(rotAngle, a3d::vec3(0.0f, 1.0f, 0.0f)));
 	m_pDevice->SetMatrix(ARTI3D_MATRIX_MODEL, a3d::mat4(1.0f));
 	//a3d::mat4 viewMat = a3d::lookAt(a3d::vec3(0.0f, 0.0f, 0.0f), a3d::vec3(0.0f, 0.0f, -5.0f), a3d::vec3(0.0f, 1.0f, 0.0f));
-	a3d::mat4 viewMat = a3d::lookAt(a3d::vec3(0.0f, 0.0f, 0.0f), a3d::vec3(0.0f,0.0f,-5.0f), a3d::vec3(0.0f, 1.0f, 0.0f));
+	a3d::mat4 viewMat = a3d::lookAt(a3d::vec3(0.0f, 0.0f, 5.0f), a3d::vec3(0.0f,0.0f,0.0f), a3d::vec3(0.0f, 1.0f, 0.0f));
 	m_pDevice->SetMatrix(ARTI3D_MATRIX_VIEW, viewMat);
-	m_pDevice->SetMatrix(ARTI3D_MATRIX_PROJECTION, a3d::perspective(120.0f, (float)m_pWindow->m_iWidth / m_pWindow->m_iHeight, 0.1f, 1000.0f));
+	m_pDevice->SetMatrix(ARTI3D_MATRIX_PROJECTION, a3d::perspective(45.0f, (float)m_pWindow->m_iWidth / m_pWindow->m_iHeight, 0.1f, 1000.0f));
 	m_pDevice->SetViewport(0, 0, m_pWindow->m_iWidth, m_pWindow->m_iHeight);
 
 	tLast = curTime;

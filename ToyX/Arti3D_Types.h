@@ -18,7 +18,10 @@ const int ARTI3D_MAX_FACE_PER_TILE			= 128;
 
 const int ARTI3D_MAX_CACHE_SIZE		= 32;
 const int ARTI3D_MAX_VARYING		= 12;
-const int ARTI3D_MAX_CLIP_VERTEX	= 9;
+
+// Size of clip temporary vertex array. Must be large enough!
+const int ARTI3D_MAX_CLIP_VERTEX	= 12;
+
 const int ARTI3D_MAX_THREAD			= 8;
 const int ARTI3D_MAX_TEXTURE_UNIT	= 8;
 

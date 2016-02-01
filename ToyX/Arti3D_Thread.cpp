@@ -3,6 +3,7 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
+#include <exception>
 #include "Arti3D_Thread.h"
 #include "Arti3D_Device.h"
 #include "Arti3D_IndexBuffer.h"
@@ -115,8 +116,7 @@ void Arti3DThread::WorkFunc(Arti3DThread *pThread)
 
 void Arti3DThread::ProcessVertex()
 {
-
-	for (uint32_t i = m_iStart; i < m_iEnd; i+=3)
+	for (uint32_t i = m_iStart; i < m_iEnd; i += 3)
 	{
 		Arti3DVSOutput v[ARTI3D_MAX_CLIP_VERTEX];
 		//memset(v, 0, sizeof(Arti3DVSOutput) * ARTI3D_MAX_CLIP_VERTEX);
@@ -306,10 +306,7 @@ void Arti3DThread::ClipTriangle(Arti3DVSOutput *v1, Arti3DVSOutput *v2, Arti3DVS
 
 			inCnt = outCnt;
 			outCnt = 0;
-
 		}
-
-
 	}
 
 	for (int i = 0; i < inCnt; ++i)
