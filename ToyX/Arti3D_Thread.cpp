@@ -758,7 +758,7 @@ void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
 			float		*depthTileLine = depthBuffer;
 
 			dbquad = _mm_loadu_ps(depthTileLine);
-			oquad = _mm_loadu_si128((__m128i*)colorTileLine);
+			oquad = _mm_load_si128((__m128i*)colorTileLine);
 
 			// Depth test
 			dbmask = *(__m128i*)&_mm_cmpge_ps(W0, dbquad);
@@ -783,7 +783,7 @@ void Arti3DThread::RenderTileFragments(Arti3DFragment *i_pFrag)
 			depthTileLine += 4;
 
 			dbquad = _mm_loadu_ps(depthTileLine);
-			oquad = _mm_loadu_si128((__m128i*)colorTileLine);
+			oquad = _mm_load_si128((__m128i*)colorTileLine);
 
 			dbmask = *(__m128i*)&_mm_cmpge_ps(W1, dbquad);
 
